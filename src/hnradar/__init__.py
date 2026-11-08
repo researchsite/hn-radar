@@ -1,2 +1,5 @@
+from hnradar.cli import app
+
+
 def main() -> None:
-    print("Hello from hnradar!")
+    app()
