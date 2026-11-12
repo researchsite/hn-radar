@@ -33,9 +33,13 @@ _COMPANY_END = re.compile(r"\s+(?:-|–|—|is hiring|are hiring)(?=\s|$)|[,.:;(
 
 _NOT_REMOTE = re.compile(
     r"\b(?:no|not|without)\s+remote\b|\bon-?site only\b|"
-    r"\b(?:don't|do not|doesn't)\s+(?:do|offer|support|allow)\s+remote\b",
+    r"\b(?:don't|do not|doesn't)\s+(?:do|offer|support|allow)\s+remote\b|"
+    r"\bremote(?:\s+work)?\s+(?:(?:is|are)\s+)?(?:not|isn['’]t|aren['’]t)\s+"
+    r"(?:available|possible|offered|supported|an option)\b|"
+    r"\bremote(?:\s+work)?\s+(?:is\s+)?unavailable\b",
     re.I,
 )
+_COMPANY_SUFFIX = re.compile(r",?\s+(?:Inc|LLC|Ltd|Corp|GmbH|Co)\b\.?")
 
 _STACK = {
     "python": "Python", "typescript": "TypeScript", "javascript": "JavaScript",
@@ -113,7 +117,10 @@ def _clean_company(name: str) -> str:
 
 def _guess_company(first_line: str) -> str:
     line = _LEADING_FILLER.sub("", first_line)
-    return _clean_company(_COMPANY_END.split(line, maxsplit=1)[0])
+    name = _COMPANY_END.split(line, maxsplit=1)[0]
+    # The cut can land on the comma in "Acme, Inc."; keep the legal suffix.
+    suffix = _COMPANY_SUFFIX.match(line, len(name))
+    return _clean_company(name + (suffix.group(0) if suffix else ""))
 
 
 def parse_comment(comment_id: int, html: str) -> Job:

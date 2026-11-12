@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 import time
 from pathlib import Path
 
@@ -31,13 +32,23 @@ def _get_json(
     cache_file = cache_dir / f"{path.replace('/', '_')}_{digest}.json"
 
     if use_cache and cache_file.exists() and time.time() - cache_file.stat().st_mtime < ttl:
-        return json.loads(cache_file.read_text(encoding="utf-8"))
+        try:
+            return json.loads(cache_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            pass  # unreadable or truncated entry: treat as a miss and refetch
 
     response = httpx.get(f"{API}/{path}", params=params, timeout=30)
     response.raise_for_status()
-    data = response.json()
+    try:
+        data = response.json()
+    except ValueError as exc:
+        raise HNError(f"Invalid JSON from {path}") from exc
+
     cache_dir.mkdir(parents=True, exist_ok=True)
-    cache_file.write_text(json.dumps(data), encoding="utf-8")
+    # Write then rename so an interrupted write can't leave a fresh, partial file.
+    tmp_file = cache_file.with_suffix(".tmp")
+    tmp_file.write_text(json.dumps(data), encoding="utf-8")
+    os.replace(tmp_file, cache_file)
     return data
 
 

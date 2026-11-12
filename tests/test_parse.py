@@ -55,6 +55,22 @@ def test_url_is_stripped_from_company():
     assert job.company == "Don't Use This Code"
 
 
+def test_negated_remote_statements_are_not_remote():
+    for text in (
+        "Remote work is not available",
+        "Remote work isn&#x27;t available for this role",
+        "Remote is not possible, sorry",
+        "Remote unavailable",
+    ):
+        assert parse_comment(1, f"Foo | Engineer | Berlin<p>{text}").remote is False, text
+
+
+def test_company_suffix_survives_comma_in_prose_fallback():
+    job = parse_comment(1, "We&#x27;re Acme, Inc. hiring engineers in Berlin")
+    assert job.company == "Acme, Inc."
+    assert parse_comment(1, "Acme Inc. is hiring engineers").company == "Acme Inc"
+
+
 def test_remote_unknown_when_not_mentioned():
     assert parse_comment(1, "Foo | Engineer | Berlin").remote is None
 

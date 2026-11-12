@@ -39,6 +39,25 @@ def test_use_cache_false_refetches(mock_hn, tmp_path):
     assert search.call_count == 2
 
 
+def test_corrupt_cache_entry_is_refetched(mock_hn, tmp_path):
+    search, _ = mock_hn
+    hn.find_latest_hiring_story(cache_dir=tmp_path)
+    next(tmp_path.glob("*.json")).write_text('{"hits": [', encoding="utf-8")  # truncated write
+
+    story = hn.find_latest_hiring_story(cache_dir=tmp_path)
+
+    assert story["id"] == STORY_ID
+    assert search.call_count == 2
+    assert not list(tmp_path.glob("*.tmp"))
+
+
+def test_invalid_json_response_raises_hn_error(respx_mock, tmp_path):
+    respx_mock.get(SEARCH_URL).mock(return_value=httpx.Response(200, content=b"<html>oops"))
+    with pytest.raises(hn.HNError):
+        hn.find_latest_hiring_story(cache_dir=tmp_path)
+    assert not list(tmp_path.iterdir())
+
+
 def test_http_error_propagates(respx_mock, tmp_path):
     respx_mock.get(SEARCH_URL).mock(return_value=httpx.Response(500))
     with pytest.raises(httpx.HTTPStatusError):

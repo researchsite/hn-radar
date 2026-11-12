@@ -25,7 +25,7 @@ def fetch_hiring(
     try:
         story = hn.find_latest_hiring_story()
         comments = hn.top_level_comments(hn.fetch_item(story["id"]))
-    except (hn.HNError, httpx.HTTPError) as exc:
+    except (hn.HNError, httpx.HTTPError) as exc:  # HNError covers non-JSON responses
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from exc
 
