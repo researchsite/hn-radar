@@ -43,3 +43,28 @@ def mock_hn(respx_mock):
     search = respx_mock.get(SEARCH_URL).mock(return_value=httpx.Response(200, json=SEARCH_RESPONSE))
     item = respx_mock.get(ITEM_URL).mock(return_value=httpx.Response(200, json=ITEM_RESPONSE))
     return search, item
+
+
+REPOS_URL = "https://api.github.com/users/octo/repos"
+
+
+def make_repo(name, *, language="Python", size=10, stars=0, fork=False, topics=(), description=None):
+    return {
+        "name": name,
+        "description": description,
+        "language": language,
+        "size": size,
+        "stargazers_count": stars,
+        "fork": fork,
+        "topics": list(topics),
+    }
+
+
+@pytest.fixture
+def mock_github(respx_mock):
+    repos = [
+        make_repo("big", language="Python", size=300, stars=5, topics=["cli"]),
+        make_repo("fork", language="Rust", size=5000, stars=900, fork=True),
+        make_repo("small", language="Go", size=20),
+    ]
+    return respx_mock.get(REPOS_URL).mock(return_value=httpx.Response(200, json=repos))

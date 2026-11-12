@@ -5,8 +5,9 @@ from typing import Annotated
 import httpx
 import typer
 
+from hnradar.fingerprint import build_profile
 from hnradar.parse import parse_comment
-from hnradar.sources import hn
+from hnradar.sources import github, hn
 
 app = typer.Typer(help="HN Radar", no_args_is_help=True)
 
@@ -39,3 +40,25 @@ def fetch_hiring(
         encoding="utf-8",
     )
     typer.echo(f'Wrote {len(jobs)} jobs from "{story["title"]}" to {out}')
+
+
+@app.command("fingerprint")
+def fingerprint(
+    username: Annotated[str, typer.Argument(help="Public GitHub username.")],
+    out_dir: Annotated[Path, typer.Option(help="Directory for <user>.json.")] = Path("data/profiles"),
+) -> None:
+    """Summarize a GitHub user's languages, topics and notable repos from public data."""
+    try:
+        repos = github.fetch_repos(username)
+    except (github.GitHubError, httpx.HTTPError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    profile = build_profile(username, repos)
+    out = out_dir / f"{username}.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(profile.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    if not repos:
+        typer.echo(f"{username} has no public repos; wrote an empty profile to {out}")
+    else:
+        typer.echo(f"Wrote profile for {username} ({len(profile.languages)} languages) to {out}")
