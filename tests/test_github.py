@@ -90,3 +90,37 @@ def test_notable_repos_by_stars_and_topics_by_frequency():
 def test_zero_repos_gives_empty_profile():
     profile = build_profile("octo", [])
     assert profile.model_dump() == {"username": "octo", "languages": [], "topics": [], "notable_repos": []}
+
+
+def test_more_repos_than_the_page_cap_fails_instead_of_truncating(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.setattr(github, "MAX_PAGES", 2)
+    full_page = [make_repo(f"r{i}") for i in range(github.PER_PAGE)]
+    route = respx_mock.get(REPOS_URL).mock(return_value=httpx.Response(200, json=full_page))
+    with pytest.raises(github.GitHubError, match="partial profile"):
+        github.fetch_repos("octo", cache_dir=tmp_path)
+    assert route.call_count == 2
+
+
+def test_exactly_a_full_last_page_keeps_paginating(respx_mock, tmp_path):
+    full_page = [make_repo(f"r{i}") for i in range(github.PER_PAGE)]
+    route = respx_mock.get(REPOS_URL).mock(
+        side_effect=[httpx.Response(200, json=full_page)] * 5 + [httpx.Response(200, json=[make_repo("x")])]
+    )
+    assert len(github.fetch_repos("octo", cache_dir=tmp_path)) == 5 * github.PER_PAGE + 1
+    assert route.call_count == 6
+
+
+def test_cache_write_leaves_no_temp_files(mock_github, tmp_path):
+    github.fetch_repos("octo", cache_dir=tmp_path)
+    assert not list(tmp_path.glob("*.tmp"))
+    assert len(list(tmp_path.glob("github_*.json"))) == 1
+
+
+def test_failed_cache_write_cleans_up_its_temp_file(mock_github, tmp_path, monkeypatch):
+    def boom(src, dst):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(github.os, "replace", boom)
+    with pytest.raises(OSError, match="disk full"):
+        github.fetch_repos("octo", cache_dir=tmp_path)
+    assert list(tmp_path.iterdir()) == []

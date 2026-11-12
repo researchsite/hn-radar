@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import re
+import tempfile
 import time
 from pathlib import Path
 
@@ -13,7 +14,7 @@ API = "https://api.github.com"
 DEFAULT_CACHE_DIR = Path("data/cache")
 REPOS_TTL = 60 * 60
 PER_PAGE = 100
-MAX_PAGES = 5
+MAX_PAGES = 20  # 2000 repos; beyond this we fail loudly instead of returning a partial list
 # GitHub usernames: 1-39 chars, alphanumeric or single hyphens, no leading/trailing hyphen.
 USERNAME_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9]|-(?=[A-Za-z0-9])){0,38}$")
 
@@ -64,10 +65,16 @@ def _get_json(
         raise GitHubError(f"Invalid JSON from {path}") from exc
 
     cache_dir.mkdir(parents=True, exist_ok=True)
-    # Write then rename so an interrupted write can't leave a fresh, partial file.
-    tmp_file = cache_file.with_suffix(".tmp")
-    tmp_file.write_text(json.dumps(data), encoding="utf-8")
-    os.replace(tmp_file, cache_file)
+    # Write to a unique temp file, then rename, so an interrupted or concurrent write can't leave
+    # a fresh, partial cache file or clobber another writer's temp file.
+    fd, tmp_name = tempfile.mkstemp(dir=cache_dir, prefix=cache_file.stem, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as tmp_file:
+            json.dump(data, tmp_file)
+        os.replace(tmp_name, cache_file)
+    except BaseException:
+        Path(tmp_name).unlink(missing_ok=True)
+        raise
     return data
 
 
@@ -89,5 +96,7 @@ def fetch_repos(username: str, *, cache_dir: Path | None = None, use_cache: bool
             raise UserNotFoundError(f"GitHub user not found: {username}") from exc
         repos.extend(batch)
         if len(batch) < PER_PAGE:
-            break
-    return repos
+            return repos
+    raise GitHubError(
+        f"{username} has more than {MAX_PAGES * PER_PAGE} public repos; refusing to build a partial profile"
+    )
