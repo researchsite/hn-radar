@@ -19,3 +19,6 @@ dist/
 
 # Local data cache (HN / GitHub API responses)
 data/cache/
+
+# Generated profiles (derived from a person's public GitHub data)
+data/profiles/
