@@ -52,3 +52,17 @@ would overwrite the full committed file.
    scrape LinkedIn or store resumes.
    Applies to: everything.
    Why: privacy and terms of service.
+
+6. **Limits fail loudly.** Any loop, page cap, retry cap, size limit or timeout must either finish
+   or raise a clear error. Never return a truncated result as if it were complete.
+   Applies to: all of `src/`.
+   Why: a pagination cap once silently produced partial profiles; a partial result looks
+   exactly like a complete one.
+
+7. **Every change ships edge-case tests.** Before writing the tests, list the worst cases for the
+   code you touched and add a test for each: empty input, exactly-at-the-limit input,
+   over-the-limit input, upstream error (404, 403/429, malformed JSON), and two writers or
+   callers touching the same file or cache key.
+   Applies to: `tests/`, every PR.
+   Why: tests written only from the ticket's happy path missed a pagination bug and a cache-write
+   collision that review later found.
