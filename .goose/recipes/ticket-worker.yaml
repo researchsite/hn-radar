@@ -18,7 +18,7 @@ extensions:
 
 settings:
   goose_provider: ollama
-  goose_model: qwen2.5:14b
+  goose_model: gpt-oss:20b-cloud
   max_turns: 60
 
 instructions: |
@@ -28,6 +28,16 @@ instructions: |
   created from the latest main (or from the existing remote branch if this is a retry).
   Do not run git checkout, git pull, git switch or git branch. Do not create or change branches.
   Do the steps below IN ORDER. Do not stop until the last step is done or you are BLOCKED.
+
+  Tool rules (very important):
+  - ALWAYS act by calling tools. Never write a tool call, a command or file contents as text or JSON in
+    your reply: text in a reply does nothing, only tool calls change files or run commands.
+  - Change files only with the write tool (full new file content). Never paste code into your reply.
+  - The write tool replaces the whole file. For an existing file, write back ALL of its current content
+    plus your additions. Never delete existing code or existing tests; after writing, git diff --stat
+    must show (almost) only added lines.
+  - Only read files that exist. List them first with the shell tool: dir /s /b src tests
+  - A step is done only when its command has actually run and you have seen its output.
 
   Hard rules:
   - Never commit or push to main. Never use git push --force or git reset --hard.
@@ -49,11 +59,16 @@ prompt: |
   3. Run: git status --short
      Run: git log --oneline -5
      If there are existing changes or commits on this branch, this is a retry: continue from them.
-  4. Read the code you need (type src\hnradar\cli.py, tests\test_cli.py, and related files).
+  4. Run: dir /s /b src tests
+     Read only the existing files you need with the shell tool (type <path>), for example
+     src\hnradar\cli.py and tests\test_cli.py. Do not guess file names.
      List the worst cases for the change (empty, at the limit, over the limit, upstream error).
   5. Implement the change with the smallest diff that meets every acceptance criterion.
-     Add a test for each acceptance criterion and each edge case.
-  6. Run: uv run pytest -q
+     Use the write tool once per file you change, with the complete new content of that file.
+     Add a test for each acceptance criterion and each edge case (also with the write tool).
+     Then run: git status --short
+     It MUST list the files you changed. If it prints nothing, you changed nothing: go back to step 5.
+  6. Run (with the shell tool, do not just describe it): uv run pytest -q
      If tests fail, fix and run again. After 2 failed fix attempts, reply
      "BLOCKED: <short reason and the failing test names>" and stop. Do not push broken code.
      Then run the smoke check from AGENTS.md:
