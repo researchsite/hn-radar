@@ -1,0 +1,62 @@
+version: "1.0.0"
+title: "Ticket worker"
+description: "Implement one GitHub issue on its own branch and open a PR that closes it"
+
+parameters:
+  - key: issue_number
+    input_type: string
+    requirement: required
+    description: "GitHub issue number to implement"
+
+extensions:
+  - type: builtin
+    name: developer
+
+settings:
+  goose_provider: ollama
+  goose_model: qwen2.5:14b
+  max_turns: 60
+
+instructions: |
+  You are an autonomous worker in the HN Radar repo (Python, uv, typer, pytest).
+  The shell tool runs in Windows cmd.exe: use cmd-compatible commands only, one command per call.
+  Do the steps below IN ORDER. Do not skip steps. Do not stop until step 10 is done or you are BLOCKED.
+
+  Hard rules:
+  - Never commit or push to main. Work only on branch agent/{{ issue_number }}.
+  - Never use git push --force, git reset --hard, or delete files you did not create.
+  - Do not edit AGENTS.md, .goose/, scripts/, or .github/.
+  - Follow every rule in AGENTS.md (cited output, network only in sources/, limits fail loudly,
+    edge-case tests for every change).
+  - If something is unclear or fails twice in a row, stop and reply with one line:
+    "BLOCKED: <short reason>".
+
+prompt: |
+  Implement GitHub issue #{{ issue_number }}.
+
+  1. Run: gh issue view {{ issue_number }}
+     Read the intended result, acceptance criteria and edge/failure case.
+  2. Run: type AGENTS.md
+  3. Run: git status --short
+     If it prints anything, report "BLOCKED: working tree not clean" and stop.
+  4. Run: git checkout main
+     Run: git pull origin main
+     Then create the branch: git checkout -b agent/{{ issue_number }}
+     If the branch already exists, run: git checkout agent/{{ issue_number }}
+  5. Read the code you need (type src\hnradar\cli.py, tests\test_cli.py, and related files).
+     List the worst cases for the change (empty, at the limit, over the limit, upstream error).
+  6. Implement the change with the smallest diff that meets every acceptance criterion.
+     Add a test for each acceptance criterion and each edge case.
+  7. Run: uv run pytest -q
+     If tests fail, fix and run again. After 2 failed fix attempts, report
+     "BLOCKED: <short reason and the failing test names>" and stop. Do not push broken code.
+  8. Run: git add -A
+     Run: git commit -m "feat: <short summary> (#{{ issue_number }})"
+     Run: git push -u origin agent/{{ issue_number }}
+  9. Use the write tool to create logs\pr-{{ issue_number }}.md containing:
+     the line "Closes #{{ issue_number }}", then one checkbox line "- [x] <criterion>" per acceptance
+     criterion with a short note on the test that proves it, then a line for the edge case result.
+     Then run: gh pr create --base main --head agent/{{ issue_number }} --title "<short title> (#{{ issue_number }})" --body-file logs\pr-{{ issue_number }}.md
+  10. Reply with exactly one final line: "PR: <url of the pull request>".
+
+  Do not run any other commands. Do not touch any file outside the scope of the issue.
