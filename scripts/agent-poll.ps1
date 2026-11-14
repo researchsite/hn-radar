@@ -1,6 +1,13 @@
 # Picks ONE open issue labeled ready-for-agent and runs the Goose ticket-worker recipe on it,
 # inside a dedicated git worktree so the main checkout is never touched.
 # Windows PowerShell 5.1. Try it first with:  powershell -File scripts\agent-poll.ps1 -DryRun
+#
+# Known limitation: the worker runs with GOOSE_MODE=auto and your normal gh login, and issue text is
+# editable after labeling. Rules in the recipe are instructions, not a boundary. Real isolation
+# (sandbox + scoped credentials) is planned for Week 4 (OpenSandbox). Until then: owner-only issues,
+# a per-issue worktree, a retry limit, and a human decides every merge.
+# Accepted risk: an existing origin/agent/<n> branch is trusted on a retry. Only the repo owner can
+# push to this repository (no collaborators), so that is the same trust level as the owner's issues.
 param([switch]$DryRun)
 
 $ErrorActionPreference = "Stop"
@@ -38,8 +45,11 @@ function Enter-Lock {
             $sw.Close()
             return $true
         } catch [IO.IOException] {
-            $owner = Get-Content $lock -ErrorAction SilentlyContinue
-            if ($owner -and (Get-Process -Id ([int]$owner) -ErrorAction SilentlyContinue)) { return $false }
+            $ownerPid = 0
+            $text = (Get-Content $lock -ErrorAction SilentlyContinue) -join ""
+            # A missing, empty or malformed lock cannot belong to a live process: treat it as stale.
+            if ([int]::TryParse($text.Trim(), [ref]$ownerPid) -and $ownerPid -gt 0 -and
+                (Get-Process -Id $ownerPid -ErrorAction SilentlyContinue)) { return $false }
             Remove-Item $lock -ErrorAction SilentlyContinue
         }
     }
@@ -97,6 +107,7 @@ function Invoke-Poll {
 
     Invoke-Native gh @("issue", "edit", "$n", "--remove-label", "ready-for-agent", "--add-label", "agent-working") | Out-Null
     $oldMode = $env:GOOSE_MODE
+    $prDone = $false
     try {
         # Worktree: continue the remote branch on a retry, otherwise start from the latest origin/main.
         Invoke-Native git @("fetch", "origin") | Out-Null
@@ -106,9 +117,13 @@ function Invoke-Poll {
             if ($remote) {
                 Invoke-Native git @("worktree", "add", "-B", $branch, $wt, "origin/$branch") | Out-Null
             } else {
-                Invoke-Native git @("worktree", "add", "-b", $branch, $wt, "origin/main") | Out-Null
+                # -B: a local branch left over from an earlier, finished run must not block a fresh start.
+                Invoke-Native git @("worktree", "add", "-B", $branch, $wt, "origin/main") | Out-Null
             }
         }
+        # An existing worktree path is only trusted if it really is a checkout of this issue's branch.
+        $current = ((Invoke-Native git @("-C", $wt, "branch", "--show-current")) -join "").Trim()
+        if ($current -ne $branch) { throw "Worktree $wt is on '$current', expected '$branch'" }
         Invoke-Native uv @("--directory", $wt, "sync") | Out-Null
 
         # Start-Process sets the working directory itself (it throws if the worktree is missing, so the
@@ -124,9 +139,16 @@ function Invoke-Poll {
         $tail = @(Get-Content $log -Tail 30 -Encoding UTF8) + @(Get-Content $errLog -Tail 10 -Encoding UTF8)
         $prUrl = ((Invoke-Native gh @("pr", "list", "--head", $branch, "--base", "main", "--state", "open", "--json", "url", "--jq", ".[0].url")) -join "").Trim()
         if (($exit -eq 0) -and $prUrl -and (($tail -join "`n") -notmatch "BLOCKED")) {
+            $prDone = $true   # from here on a bookkeeping failure must not relabel a finished issue
             Invoke-Native gh @("issue", "edit", "$n", "--remove-label", "agent-working") | Out-Null
             Invoke-Native gh @("issue", "comment", "$n", "--body", "Agent run finished: $prUrl") | Out-Null
-            Invoke-Native git @("worktree", "remove", "--force", $wt) | Out-Null
+            # Only remove a clean worktree; uncommitted edits stay for a human to look at.
+            $left = @(Invoke-Native git @("-C", $wt, "status", "--short"))
+            if ($left.Count -eq 0) {
+                Invoke-Native git @("worktree", "remove", $wt) | Out-Null
+            } else {
+                Write-Host "Worktree $wt has uncommitted changes; leaving it in place."
+            }
         } else {
             $body = Join-Path $logs "fail-$n-$stamp.md"
             Write-Utf8 $body (@("Agent run did not produce a PR (exit $exit). Work is kept in $wt.", "Last lines of the log:", '```') + $tail + '```')
@@ -136,7 +158,9 @@ function Invoke-Poll {
     } catch {
         $env:GOOSE_MODE = $oldMode
         Write-Error "Run for issue #$n failed: $_" -ErrorAction Continue
-        try { Set-NeedsHuman $n "Agent poller failed: $_" } catch { Write-Error "Could not mark #$n needs-human: $_" -ErrorAction Continue }
+        if (-not $prDone) {
+            try { Set-NeedsHuman $n "Agent poller failed: $_" } catch { Write-Error "Could not mark #$n needs-human: $_" -ErrorAction Continue }
+        }
         return 1
     }
     return 0

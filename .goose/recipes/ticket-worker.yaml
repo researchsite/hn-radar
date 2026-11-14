@@ -56,6 +56,9 @@ prompt: |
   6. Run: uv run pytest -q
      If tests fail, fix and run again. After 2 failed fix attempts, reply
      "BLOCKED: <short reason and the failing test names>" and stop. Do not push broken code.
+     Then run the smoke check from AGENTS.md:
+     uv run hnradar fetch-hiring --limit 20 --out data/cache/verify.json
+     If it errors, treat it like a failed test.
   7. Run: git status --short
      If it prints anything, run: git add -A
      and then: git commit -m "feat: <short summary> (#{{ issue_number }})"
