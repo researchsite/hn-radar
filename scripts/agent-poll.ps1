@@ -21,6 +21,12 @@ function Invoke-Native {
     return $out
 }
 
+# gh --body-file reads UTF-8; Set-Content on PowerShell 5.1 would use the system code page.
+function Write-Utf8 {
+    param([string]$Path, [string[]]$Lines)
+    [IO.File]::WriteAllLines($Path, $Lines, (New-Object Text.UTF8Encoding($false)))
+}
+
 # Exclusive lock owned by this process. A lock whose owner process is gone is stale and is replaced.
 $lock = Join-Path $logs "agent.lock"
 function Enter-Lock {
@@ -53,32 +59,39 @@ function Invoke-Poll {
     if ($issues.Count -eq 0) { return 0 }   # successful, empty queue: exit quietly
     $n = [int]$issues[0].number
 
-    # Issue text drives a shell with no approval prompts, so only the repo owner's issues are worked.
     $owner = ((Invoke-Native gh @("repo", "view", "--json", "owner", "--jq", ".owner.login")) -join "").Trim()
-    if ($issues[0].author.login -ne $owner) {
-        Set-NeedsHuman $n "Skipped: the agent only works on issues authored by $owner."
-        return 0
-    }
-
+    $author = $issues[0].author.login
     $runs = @(Get-ChildItem $logs -Filter "agent-$n-*.log" -ErrorAction SilentlyContinue).Count
-    if ($runs -ge $MaxRuns) {
-        Set-NeedsHuman $n "Agent already ran $runs times on this issue. Needs a human."
-        return 0
-    }
-
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $log = Join-Path $logs "agent-$n-$stamp.log"
+    $errLog = "$log.err"
     $branch = "agent/$n"
     $wt = Join-Path $wtRoot "issue-$n"
     $recipe = Join-Path $repo ".goose\recipes\ticket-worker.yaml"
     $prBody = Join-Path $logs "pr-$n.md"
-    $goose = "goose run --recipe `"$recipe`" --params issue_number=$n --params `"pr_body_path=$prBody`" " +
-             "--provider ollama --model $Model --no-session --max-turns 60 --max-tool-repetitions 3"
+    $gooseArgs = "run --recipe `"$recipe`" --params issue_number=$n --params `"pr_body_path=$prBody`" " +
+                 "--provider ollama --model $Model --no-session --max-turns 60 --max-tool-repetitions 3"
 
-    if ($DryRun) {
-        Write-Output "DRY RUN: would take issue #$n (author $owner)."
-        Write-Output "  worktree: $wt  branch: $branch"
-        Write-Output "  run: $goose > $log"
+    # Issue text drives a shell with no approval prompts, so only the repo owner's issues are worked.
+    $skipOwner = ($author -ne $owner)
+    $skipRuns = ($runs -ge $MaxRuns)
+
+    if ($DryRun) {   # read-only: no labels, comments, worktrees or runs
+        if ($skipOwner) { Write-Host "DRY RUN: would skip #$n (author $author is not $owner)." }
+        elseif ($skipRuns) { Write-Host "DRY RUN: would mark #$n needs-human ($runs runs already)." }
+        else {
+            Write-Host "DRY RUN: would take issue #$n (author $author)."
+            Write-Host "  worktree: $wt  branch: $branch"
+            Write-Host "  run (cwd = worktree, GOOSE_MODE=auto): goose $gooseArgs"
+        }
+        return 0
+    }
+    if ($skipOwner) {
+        Set-NeedsHuman $n "Skipped: the agent only works on issues authored by $owner."
+        return 0
+    }
+    if ($skipRuns) {
+        Set-NeedsHuman $n "Agent already ran $runs times on this issue. Needs a human."
         return 0
     }
 
@@ -98,17 +111,17 @@ function Invoke-Poll {
         }
         Invoke-Native uv @("--directory", $wt, "sync") | Out-Null
 
-        # A small .cmd file avoids PowerShell/cmd quoting problems.
-        $bat = Join-Path $logs "run-$n-$stamp.cmd"
-        Set-Content $bat @("@echo off", "cd /d `"$wt`"", "$goose > `"$log`" 2>&1") -Encoding ASCII
-        # Headless runs cannot answer approval prompts, so Auto is required. Scoped to this process only.
+        # Start-Process sets the working directory itself (it throws if the worktree is missing, so the
+        # worker can never start in the main checkout) and avoids cmd.exe quoting and %VAR% expansion.
+        # Headless runs cannot answer approval prompts, so Auto is required. Scoped to this process tree.
         $env:GOOSE_MODE = "auto"
-        cmd.exe /c $bat
-        $exit = $LASTEXITCODE
+        $proc = Start-Process -FilePath "goose" -ArgumentList $gooseArgs -WorkingDirectory $wt `
+            -RedirectStandardOutput $log -RedirectStandardError $errLog -NoNewWindow -Wait -PassThru
+        $exit = $proc.ExitCode
         $env:GOOSE_MODE = $oldMode
 
         # Success means an open PR exists for the branch, not that the model printed a link.
-        $tail = @(Get-Content $log -Tail 30)
+        $tail = @(Get-Content $log -Tail 30 -Encoding UTF8) + @(Get-Content $errLog -Tail 10 -Encoding UTF8)
         $prUrl = ((Invoke-Native gh @("pr", "list", "--head", $branch, "--base", "main", "--state", "open", "--json", "url", "--jq", ".[0].url")) -join "").Trim()
         if (($exit -eq 0) -and $prUrl -and (($tail -join "`n") -notmatch "BLOCKED")) {
             Invoke-Native gh @("issue", "edit", "$n", "--remove-label", "agent-working") | Out-Null
@@ -116,7 +129,7 @@ function Invoke-Poll {
             Invoke-Native git @("worktree", "remove", "--force", $wt) | Out-Null
         } else {
             $body = Join-Path $logs "fail-$n-$stamp.md"
-            Set-Content $body (@("Agent run did not produce a PR (exit $exit). Work is kept in $wt.", "Last lines of the log:", '```') + $tail + '```')
+            Write-Utf8 $body (@("Agent run did not produce a PR (exit $exit). Work is kept in $wt.", "Last lines of the log:", '```') + $tail + '```')
             Invoke-Native gh @("issue", "edit", "$n", "--remove-label", "agent-working", "--add-label", "needs-human") | Out-Null
             Invoke-Native gh @("issue", "comment", "$n", "--body-file", $body) | Out-Null
         }
@@ -130,9 +143,9 @@ function Invoke-Poll {
 }
 
 if (-not (Enter-Lock)) {
-    Write-Output "Another run holds the lock; exiting."
+    Write-Host "Another run holds the lock; exiting."
     exit 0
 }
 $code = 0
-try { $code = Invoke-Poll } finally { Remove-Item $lock -ErrorAction SilentlyContinue }
+try { $code = @(Invoke-Poll)[-1] } finally { Remove-Item $lock -ErrorAction SilentlyContinue }
 exit $code
