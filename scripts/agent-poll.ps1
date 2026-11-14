@@ -12,7 +12,7 @@ param([switch]$DryRun)
 
 $ErrorActionPreference = "Stop"
 $MaxRuns = 2
-$Model = "qwen2.5:14b"
+$Model = "gpt-oss:20b-cloud"   # local qwen2.5:14b printed tool calls as text in long runs
 
 $repo = Split-Path -Parent $PSScriptRoot
 Set-Location $repo
