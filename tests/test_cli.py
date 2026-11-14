@@ -1,6 +1,7 @@
 import json
 
 import httpx
+import pytest
 from typer.testing import CliRunner
 
 from hnradar.cli import app
@@ -150,3 +151,13 @@ def test_fetch_hiring_json_network_error_exits_nonzero(respx_mock, tmp_path, mon
     result = runner.invoke(app, ["fetch-hiring", "--json"])
 
     assert result.exit_code == 1
+
+
+@pytest.mark.parametrize("limit", [3, 10])  # exactly the job count, and above it
+def test_fetch_hiring_limit_at_or_above_job_count_returns_all(mock_hn, tmp_path, monkeypatch, limit):
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(app, ["fetch-hiring", "--json", "--limit", str(limit)])
+
+    assert result.exit_code == 0, result.output
+    assert len(json.loads(result.stdout)) == 3
