@@ -1,4 +1,5 @@
 import json
+import unicodedata
 from pathlib import Path
 from typing import Annotated
 
@@ -38,19 +39,29 @@ def fetch_hiring(
         comments = comments[:limit]
     jobs = [parse_comment(int(c["id"]), c["text"]) for c in comments]
 
-    out_text = json.dumps([j.model_dump() for j in jobs], indent=2, ensure_ascii=False)
+    records = [j.model_dump() for j in jobs]
     target = out if out is not None else (None if json_output else Path("data/jobs.json"))
     if target is not None:
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(out_text + "\n", encoding="utf-8")
+        target.write_text(json.dumps(records, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
     if json_output:
-        typer.echo(out_text)
+        # ensure_ascii escapes every non-ASCII character (incl. C1 controls such as U+009B) on stdout.
+        typer.echo(json.dumps(records, indent=2, ensure_ascii=True))
         return
 
-    typer.echo(f'Wrote {len(jobs)} jobs from "{story["title"]}" to {target}')
+    typer.echo(f'Wrote {len(jobs)} jobs from "{_terminal_safe(story["title"])}" to {target}')
     for j in jobs:
-        typer.echo(f"{j.company} | {j.role or '-'} | {_remote_label(j.remote)}")
+        typer.echo(f"{_terminal_safe(j.company)} | {_terminal_safe(j.role) or '-'} | {_remote_label(j.remote)}")
+
+
+def _terminal_safe(text: str | None) -> str:
+    """Post text is attacker-controlled: replace control characters (ESC, BEL, CR, C1...) with spaces and
+    drop format characters (bidirectional overrides like U+202E, zero-width) before printing."""
+    if not text:
+        return ""
+    kept = (" " if unicodedata.category(c) == "Cc" else c for c in text if unicodedata.category(c) != "Cf")
+    return " ".join("".join(kept).split())
 
 
 def _remote_label(remote: bool | None) -> str:
