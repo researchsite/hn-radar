@@ -34,26 +34,11 @@ function Write-Utf8 {
     [IO.File]::WriteAllLines($Path, $Lines, (New-Object Text.UTF8Encoding($false)))
 }
 
-# Exclusive lock owned by this process. A lock whose owner process is gone is stale and is replaced.
-$lock = Join-Path $logs "agent.lock"
+# Single-instance guard: a named OS mutex. Windows releases it when the owning process exits or
+# crashes, so there is no stale lock to detect or delete and no PID that could be reused.
+$mutex = New-Object System.Threading.Mutex($false, "Global\HNRadarAgentPoll")
 function Enter-Lock {
-    for ($i = 0; $i -lt 2; $i++) {
-        try {
-            $fs = [IO.File]::Open($lock, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::None)
-            $sw = New-Object IO.StreamWriter($fs)
-            $sw.Write($PID)
-            $sw.Close()
-            return $true
-        } catch [IO.IOException] {
-            $ownerPid = 0
-            $text = (Get-Content $lock -ErrorAction SilentlyContinue) -join ""
-            # A missing, empty or malformed lock cannot belong to a live process: treat it as stale.
-            if ([int]::TryParse($text.Trim(), [ref]$ownerPid) -and $ownerPid -gt 0 -and
-                (Get-Process -Id $ownerPid -ErrorAction SilentlyContinue)) { return $false }
-            Remove-Item $lock -ErrorAction SilentlyContinue
-        }
-    }
-    return $false
+    try { return $mutex.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { return $true }
 }
 
 function Set-NeedsHuman {
@@ -136,9 +121,10 @@ function Invoke-Poll {
         $env:GOOSE_MODE = $oldMode
 
         # Success means an open PR exists for the branch, not that the model printed a link.
-        $tail = @(Get-Content $log -Tail 30 -Encoding UTF8) + @(Get-Content $errLog -Tail 10 -Encoding UTF8)
+        $out = @(Get-Content $log -Tail 30 -Encoding UTF8)
+        $tail = $out + @(Get-Content $errLog -Tail 10 -Encoding UTF8)
         $prUrl = ((Invoke-Native gh @("pr", "list", "--head", $branch, "--base", "main", "--state", "open", "--json", "url", "--jq", ".[0].url")) -join "").Trim()
-        if (($exit -eq 0) -and $prUrl -and (($tail -join "`n") -notmatch "BLOCKED")) {
+        if (($exit -eq 0) -and $prUrl -and (($out -join "`n") -notmatch "(?m)^\s*BLOCKED:")) {
             $prDone = $true   # from here on a bookkeeping failure must not relabel a finished issue
             Invoke-Native gh @("issue", "edit", "$n", "--remove-label", "agent-working") | Out-Null
             Invoke-Native gh @("issue", "comment", "$n", "--body", "Agent run finished: $prUrl") | Out-Null
@@ -171,5 +157,5 @@ if (-not (Enter-Lock)) {
     exit 0
 }
 $code = 0
-try { $code = @(Invoke-Poll)[-1] } finally { Remove-Item $lock -ErrorAction SilentlyContinue }
+try { $code = @(Invoke-Poll)[-1] } finally { $mutex.ReleaseMutex(); $mutex.Dispose() }
 exit $code
