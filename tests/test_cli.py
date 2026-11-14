@@ -100,15 +100,26 @@ def test_fetch_hiring_default_prints_table(mock_hn, tmp_path, monkeypatch):
     assert (tmp_path / "jobs.json").exists()  # --out behavior unchanged
 
 
-def test_fetch_hiring_json_prints_valid_json_and_writes_no_file(mock_hn, tmp_path, monkeypatch):
+def test_fetch_hiring_json_alone_writes_no_file(mock_hn, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(app, ["fetch-hiring", "--json"])
+
+    assert result.exit_code == 0, result.output
+    assert [j["comment_id"] for j in json.loads(result.stdout)] == [101, 102, 104]
+    assert not (tmp_path / "data" / "jobs.json").exists()
+
+
+def test_fetch_hiring_json_with_out_prints_and_writes(mock_hn, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     out = tmp_path / "jobs.json"
 
     result = runner.invoke(app, ["fetch-hiring", "--json", "--out", str(out)])
 
     assert result.exit_code == 0, result.output
-    assert [j["comment_id"] for j in json.loads(result.stdout)] == [101, 102, 104]
-    assert not out.exists()
+    printed = json.loads(result.stdout)
+    assert printed == json.loads(out.read_text(encoding="utf-8"))
+    assert len(printed) == 3
 
 
 def test_fetch_hiring_json_respects_limit(mock_hn, tmp_path, monkeypatch):
