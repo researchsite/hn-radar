@@ -21,6 +21,7 @@ def _root() -> None:
 def fetch_hiring(
     limit: Annotated[int | None, typer.Option(min=1, help="Max number of jobs to keep.")] = None,
     out: Annotated[Path, typer.Option(help="Output JSON file.")] = Path("data/jobs.json"),
+    json_output: Annotated[bool, typer.Option("--json", is_flag=True, help="Print jobs as JSON to stdout.")] = False,
 ) -> None:
     """Fetch the latest 'Ask HN: Who is hiring?' thread and write parsed jobs as JSON."""
     try:
@@ -34,12 +35,14 @@ def fetch_hiring(
         comments = comments[:limit]
     jobs = [parse_comment(int(c["id"]), c["text"]) for c in comments]
 
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(
-        json.dumps([j.model_dump() for j in jobs], indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-    typer.echo(f'Wrote {len(jobs)} jobs from "{story["title"]}" to {out}')
+    out_text = json.dumps([j.model_dump() for j in jobs], indent=2, ensure_ascii=False) + "\n"
+
+    if json_output:
+        typer.echo(out_text)
+    else:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(out_text, encoding="utf-8")
+        typer.echo(f'Wrote {len(jobs)} jobs from "{story["title"]}" to {out}')
 
 
 @app.command("fingerprint")
