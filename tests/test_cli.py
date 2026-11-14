@@ -1,6 +1,7 @@
 import json
 
 import httpx
+import pytest
 from typer.testing import CliRunner
 
 from hnradar.cli import app
@@ -87,3 +88,76 @@ def test_fingerprint_invalid_username_exits_1(respx_mock, tmp_path, monkeypatch)
     assert result.exit_code == 1
     assert not respx_mock.calls
     assert not (tmp_path / "p").exists()
+
+
+def test_fetch_hiring_default_prints_table(mock_hn, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(app, ["fetch-hiring", "--out", str(tmp_path / "jobs.json")])
+
+    assert result.exit_code == 0, result.output
+    assert "Acme | Senior Backend Engineer | yes" in result.output
+    assert "Globex | Data Analyst | no" in result.output
+    assert (tmp_path / "jobs.json").exists()  # --out behavior unchanged
+
+
+def test_fetch_hiring_json_alone_writes_no_file(mock_hn, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(app, ["fetch-hiring", "--json"])
+
+    assert result.exit_code == 0, result.output
+    assert [j["comment_id"] for j in json.loads(result.stdout)] == [101, 102, 104]
+    assert not (tmp_path / "data" / "jobs.json").exists()
+
+
+def test_fetch_hiring_json_with_out_prints_and_writes(mock_hn, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    out = tmp_path / "jobs.json"
+
+    result = runner.invoke(app, ["fetch-hiring", "--json", "--out", str(out)])
+
+    assert result.exit_code == 0, result.output
+    printed = json.loads(result.stdout)
+    assert printed == json.loads(out.read_text(encoding="utf-8"))
+    assert len(printed) == 3
+
+
+def test_fetch_hiring_json_respects_limit(mock_hn, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(app, ["fetch-hiring", "--json", "--limit", "1"])
+
+    assert result.exit_code == 0, result.output
+    assert len(json.loads(result.stdout)) == 1
+
+
+def test_fetch_hiring_limit_zero_is_empty_and_exit_0(mock_hn, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    table = runner.invoke(app, ["fetch-hiring", "--limit", "0", "--out", str(tmp_path / "jobs.json")])
+    as_json = runner.invoke(app, ["fetch-hiring", "--limit", "0", "--json"])
+
+    assert table.exit_code == 0, table.output
+    assert "|" not in table.output  # no table rows
+    assert as_json.exit_code == 0, as_json.output
+    assert json.loads(as_json.stdout) == []
+
+
+def test_fetch_hiring_json_network_error_exits_nonzero(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    respx_mock.get(SEARCH_URL).mock(return_value=httpx.Response(503))
+
+    result = runner.invoke(app, ["fetch-hiring", "--json"])
+
+    assert result.exit_code == 1
+
+
+@pytest.mark.parametrize("limit", [3, 10])  # exactly the job count, and above it
+def test_fetch_hiring_limit_at_or_above_job_count_returns_all(mock_hn, tmp_path, monkeypatch, limit):
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(app, ["fetch-hiring", "--json", "--limit", str(limit)])
+
+    assert result.exit_code == 0, result.output
+    assert len(json.loads(result.stdout)) == 3

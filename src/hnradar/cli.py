@@ -19,10 +19,14 @@ def _root() -> None:
 
 @app.command("fetch-hiring")
 def fetch_hiring(
-    limit: Annotated[int | None, typer.Option(min=1, help="Max number of jobs to keep.")] = None,
-    out: Annotated[Path, typer.Option(help="Output JSON file.")] = Path("data/jobs.json"),
+    limit: Annotated[int | None, typer.Option(min=0, help="Max number of jobs to keep.")] = None,
+    out: Annotated[
+        Path | None,
+        typer.Option(help="Output JSON file (default data/jobs.json; with --json only written if given)."),
+    ] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Print jobs as JSON to stdout instead of a table.")] = False,
 ) -> None:
-    """Fetch the latest 'Ask HN: Who is hiring?' thread and write parsed jobs as JSON."""
+    """Fetch the latest 'Ask HN: Who is hiring?' thread, write parsed jobs as JSON and print a table."""
     try:
         story = hn.find_latest_hiring_story()
         comments = hn.top_level_comments(hn.fetch_item(story["id"]))
@@ -34,12 +38,23 @@ def fetch_hiring(
         comments = comments[:limit]
     jobs = [parse_comment(int(c["id"]), c["text"]) for c in comments]
 
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(
-        json.dumps([j.model_dump() for j in jobs], indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-    typer.echo(f'Wrote {len(jobs)} jobs from "{story["title"]}" to {out}')
+    out_text = json.dumps([j.model_dump() for j in jobs], indent=2, ensure_ascii=False)
+    target = out if out is not None else (None if json_output else Path("data/jobs.json"))
+    if target is not None:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(out_text + "\n", encoding="utf-8")
+
+    if json_output:
+        typer.echo(out_text)
+        return
+
+    typer.echo(f'Wrote {len(jobs)} jobs from "{story["title"]}" to {target}')
+    for j in jobs:
+        typer.echo(f"{j.company} | {j.role or '-'} | {_remote_label(j.remote)}")
+
+
+def _remote_label(remote: bool | None) -> str:
+    return "?" if remote is None else ("yes" if remote else "no")
 
 
 @app.command("fingerprint")
