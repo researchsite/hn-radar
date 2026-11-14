@@ -1,4 +1,5 @@
 import json
+import unicodedata
 from pathlib import Path
 from typing import Annotated
 
@@ -48,9 +49,16 @@ def fetch_hiring(
         typer.echo(out_text)
         return
 
-    typer.echo(f'Wrote {len(jobs)} jobs from "{story["title"]}" to {target}')
+    typer.echo(f'Wrote {len(jobs)} jobs from "{_terminal_safe(story["title"])}" to {target}')
     for j in jobs:
-        typer.echo(f"{j.company} | {j.role or '-'} | {_remote_label(j.remote)}")
+        typer.echo(f"{_terminal_safe(j.company)} | {_terminal_safe(j.role) or '-'} | {_remote_label(j.remote)}")
+
+
+def _terminal_safe(text: str | None) -> str:
+    """Post text is attacker-controlled: replace control characters (ESC, BEL, CR, C1...) before printing."""
+    if not text:
+        return ""
+    return " ".join("".join(" " if unicodedata.category(c) == "Cc" else c for c in text).split())
 
 
 def _remote_label(remote: bool | None) -> str:

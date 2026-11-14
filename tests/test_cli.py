@@ -4,10 +4,10 @@ import httpx
 import pytest
 from typer.testing import CliRunner
 
-from hnradar.cli import app
+from hnradar.cli import _terminal_safe, app
 from hnradar.models import Job, Profile
 
-from conftest import REPOS_URL, SEARCH_URL
+from conftest import ITEM_URL, REPOS_URL, SEARCH_RESPONSE, SEARCH_URL, STORY_ID
 
 runner = CliRunner()
 
@@ -161,3 +161,29 @@ def test_fetch_hiring_limit_at_or_above_job_count_returns_all(mock_hn, tmp_path,
 
     assert result.exit_code == 0, result.output
     assert len(json.loads(result.stdout)) == 3
+
+
+def test_fetch_hiring_table_strips_control_characters(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    hostile = "Evil" + chr(27) + "[2J" + chr(7) + " Corp | DevOps | REMOTE"  # literal control chars, as JSON can carry
+    item = {
+        "id": STORY_ID,
+        "type": "story",
+        "title": "Ask HN: Who is hiring? (November 2026)",
+        "children": [{"id": 301, "type": "comment", "text": hostile, "children": []}],
+    }
+    respx_mock.get(SEARCH_URL).mock(return_value=httpx.Response(200, json=SEARCH_RESPONSE))
+    respx_mock.get(ITEM_URL).mock(return_value=httpx.Response(200, json=item))
+
+    result = runner.invoke(app, ["fetch-hiring", "--out", str(tmp_path / "jobs.json")])
+
+    assert result.exit_code == 0, result.output
+    assert not any(ord(c) < 32 and c != chr(10) for c in result.output)  # no ESC, BEL or CR reaches the terminal
+    assert "Evil [2J Corp | DevOps | yes" in result.output
+
+
+@pytest.mark.parametrize("text", [None, "", chr(27) + chr(7), "plain"])
+def test_terminal_safe_edge_cases(text):
+    cleaned = _terminal_safe(text)
+    assert all(ord(c) >= 32 for c in cleaned)
+    assert cleaned == ("plain" if text == "plain" else "")

@@ -66,3 +66,11 @@ would overwrite the full committed file.
    Applies to: `tests/`, every PR.
    Why: tests written only from the ticket's happy path missed a pagination bug and a cache-write
    collision that review later found.
+
+8. **Untrusted post text is cleaned before it reaches a terminal.** Text taken from an HN post,
+   comment or GitHub profile (company, role, titles, descriptions) must have control characters
+   removed before it is printed to the terminal. Machine-readable output (JSON) may keep the raw
+   text because JSON escapes it.
+   Applies to: every `typer.echo` / `print` in `src/hnradar/` that outputs post or profile text.
+   Why: the author of a post controls that text, and an escape sequence in it can rewrite or hide
+   what the user sees; a review found this in the `fetch-hiring` table.
