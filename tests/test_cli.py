@@ -163,17 +163,21 @@ def test_fetch_hiring_limit_at_or_above_job_count_returns_all(mock_hn, tmp_path,
     assert len(json.loads(result.stdout)) == 3
 
 
-def test_fetch_hiring_table_strips_control_characters(respx_mock, tmp_path, monkeypatch):
-    monkeypatch.chdir(tmp_path)
-    hostile = "Evil" + chr(27) + "[2J" + chr(7) + " Corp | DevOps | REMOTE"  # literal control chars, as JSON can carry
+def mock_hostile_post(respx_mock, text):
+    """One job whose text carries literal control characters, as the API's JSON can."""
     item = {
         "id": STORY_ID,
         "type": "story",
         "title": "Ask HN: Who is hiring? (November 2026)",
-        "children": [{"id": 301, "type": "comment", "text": hostile, "children": []}],
+        "children": [{"id": 301, "type": "comment", "text": text, "children": []}],
     }
     respx_mock.get(SEARCH_URL).mock(return_value=httpx.Response(200, json=SEARCH_RESPONSE))
     respx_mock.get(ITEM_URL).mock(return_value=httpx.Response(200, json=item))
+
+
+def test_fetch_hiring_table_strips_control_characters(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    mock_hostile_post(respx_mock, "Evil" + chr(27) + "[2J" + chr(7) + " Corp | DevOps | REMOTE")
 
     result = runner.invoke(app, ["fetch-hiring", "--out", str(tmp_path / "jobs.json")])
 
@@ -182,7 +186,29 @@ def test_fetch_hiring_table_strips_control_characters(respx_mock, tmp_path, monk
     assert "Evil [2J Corp | DevOps | yes" in result.output
 
 
-@pytest.mark.parametrize("text", [None, "", chr(27) + chr(7), "plain"])
+def test_fetch_hiring_table_strips_bidi_overrides(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    mock_hostile_post(respx_mock, "Acme" + chr(0x202E) + "evil | DevOps | REMOTE")
+
+    result = runner.invoke(app, ["fetch-hiring", "--out", str(tmp_path / "jobs.json")])
+
+    assert result.exit_code == 0, result.output
+    assert chr(0x202E) not in result.output
+    assert "Acmeevil | DevOps | yes" in result.output
+
+
+def test_fetch_hiring_json_stdout_escapes_c1_controls(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    mock_hostile_post(respx_mock, "Acme" + chr(0x9B) + "2J | DevOps | REMOTE")
+
+    result = runner.invoke(app, ["fetch-hiring", "--json"])
+
+    assert result.exit_code == 0, result.output
+    assert all(ord(c) < 128 for c in result.stdout)  # nothing a terminal could act on
+    assert json.loads(result.stdout)[0]["company"] == "Acme" + chr(0x9B) + "2J"  # still round-trips
+
+
+@pytest.mark.parametrize("text", [None, "", chr(27) + chr(7), chr(0x202E) + chr(0x200B), "plain"])
 def test_terminal_safe_edge_cases(text):
     cleaned = _terminal_safe(text)
     assert all(ord(c) >= 32 for c in cleaned)
