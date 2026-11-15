@@ -8,6 +8,7 @@ import typer
 
 from hnradar.fingerprint import build_profile
 from hnradar.parse import parse_comment
+from hnradar.showhn import build_result, normalize_domain
 from hnradar.sources import github, hn
 
 app = typer.Typer(help="HN Radar", no_args_is_help=True)
@@ -66,6 +67,48 @@ def _terminal_safe(text: str | None) -> str:
 
 def _remote_label(remote: bool | None) -> str:
     return "?" if remote is None else ("yes" if remote else "no")
+
+
+@app.command("showhn")
+def showhn(
+    company: Annotated[str, typer.Argument(help="Company name to look up.")],
+    domain: Annotated[
+        str | None,
+        typer.Option(help="Company domain, e.g. acme.com. Story URL hosts are compared with it."),
+    ] = None,
+    json_output: Annotated[bool, typer.Option("--json", help="Print the result as JSON.")] = False,
+) -> None:
+    """Find candidate Show HN stories for a company (at most 5, domain matches first)."""
+    company = company.strip()
+    try:
+        if not company:
+            raise ValueError("Company name must not be empty")
+        wanted = normalize_domain(domain) if domain is not None else None  # validate before any network call
+        found = hn.search_show_hn(company)
+        result = build_result(company, wanted, found["hits"], found["total_hits"])
+    except ValueError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    except (hn.HNError, httpx.HTTPError) as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    if json_output:
+        # ensure_ascii escapes every non-ASCII character (incl. C1 controls such as U+009B) on stdout.
+        typer.echo(json.dumps(result.model_dump(), indent=2, ensure_ascii=True))
+        return
+
+    typer.echo(f'Show HN candidates for "{_terminal_safe(company)}": {len(result.candidates)} of {result.total_hits} hits')
+    for c in result.candidates:
+        match = "domain match" if c.domain_match else "-"
+        typer.echo(
+            f"{c.story_id} | {c.points} pts | {c.num_comments} comments | {match} | "
+            f"{_terminal_safe(c.title)} | {_terminal_safe(c.url) or '-'}"
+        )
+    if result.truncated:
+        typer.echo(f"Showing {len(result.candidates)} of {result.total_hits} hits; refine the name or add --domain.")
+    if result.low_confidence:
+        typer.echo("Low confidence: no story URL matches the domain" + ("" if domain is not None else " (no --domain given)") + ".")
 
 
 @app.command("fingerprint")

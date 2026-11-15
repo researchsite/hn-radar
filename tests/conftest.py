@@ -68,3 +68,15 @@ def mock_github(respx_mock):
         make_repo("small", language="Go", size=20),
     ]
     return respx_mock.get(REPOS_URL).mock(return_value=httpx.Response(200, json=repos))
+
+
+SHOW_HN_URL = "https://hn.algolia.com/api/v1/search"
+
+
+def make_show_hit(story_id, title, *, points=1, comments=0, url=None):
+    return {"objectID": str(story_id), "title": title, "points": points, "num_comments": comments, "url": url}
+
+
+def show_hn_route(respx_mock, hits, nb_hits=None):
+    body = {"hits": hits, "nbHits": len(hits) if nb_hits is None else nb_hits}
+    return respx_mock.get(SHOW_HN_URL).mock(return_value=httpx.Response(200, json=body))

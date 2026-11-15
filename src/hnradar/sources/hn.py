@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import re
 import tempfile
 import time
 from pathlib import Path
@@ -13,6 +14,8 @@ API = "https://hn.algolia.com/api/v1"
 DEFAULT_CACHE_DIR = Path("data/cache")
 SEARCH_TTL = 60 * 60
 ITEM_TTL = 6 * 60 * 60
+SHOW_HN_TTL = 60 * 60
+SHOW_HN_PAGE = 50  # hits requested per search; the caller reports when total_hits is larger
 TITLE_PREFIX = "ask hn: who is hiring"
 
 
@@ -27,6 +30,7 @@ def _get_json(
     ttl: int,
     cache_dir: Path | None,
     use_cache: bool,
+    validate=None,
 ):
     cache_dir = cache_dir or DEFAULT_CACHE_DIR
     digest = hashlib.sha256(json.dumps([path, params], sort_keys=True).encode()).hexdigest()[:16]
@@ -34,9 +38,12 @@ def _get_json(
 
     if use_cache and cache_file.exists() and time.time() - cache_file.stat().st_mtime < ttl:
         try:
-            return json.loads(cache_file.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            pass  # unreadable or truncated entry: treat as a miss and refetch
+            cached = json.loads(cache_file.read_text(encoding="utf-8"))
+            if validate:
+                validate(cached)  # an entry of the wrong shape (old or hand-edited) is a miss, not a crash
+            return cached
+        except (OSError, ValueError, HNError):
+            pass  # unreadable, truncated or malformed entry: treat as a miss and refetch
 
     response = httpx.get(f"{API}/{path}", params=params, timeout=30)
     response.raise_for_status()
@@ -44,6 +51,8 @@ def _get_json(
         data = response.json()
     except ValueError as exc:
         raise HNError(f"Invalid JSON from {path}") from exc
+    if validate:
+        validate(data)  # before the cache write: a response of the wrong shape is never cached
 
     cache_dir.mkdir(parents=True, exist_ok=True)
     # Write to a unique temp file, then rename, so an interrupted or concurrent write can't leave
@@ -74,6 +83,56 @@ def find_latest_hiring_story(*, cache_dir: Path | None = None, use_cache: bool =
         raise HNError("No 'Ask HN: Who is hiring?' story found")
     latest = max(hits, key=lambda h: h.get("created_at_i", 0))
     return {"id": int(latest["objectID"]), "title": latest["title"]}
+
+
+def _check_search_shape(data) -> None:
+    if not isinstance(data, dict) or not isinstance(data.get("hits"), list):
+        raise HNError("Unexpected search response: no 'hits' list")
+    # nbHits is required: without it a cut result could not be told apart from a complete one (rule 6).
+    nb_hits = data.get("nbHits")
+    if isinstance(nb_hits, bool) or not isinstance(nb_hits, int) or nb_hits < 0:
+        raise HNError("Unexpected search response: 'nbHits' is missing or not a count")
+    if nb_hits < len(data["hits"]):
+        raise HNError("Unexpected search response: 'nbHits' is smaller than the hits returned")
+    for hit in data["hits"]:  # checked here, before the cache write, so a bad hit is never cached
+        if not isinstance(hit, dict) or not re.fullmatch(r"[0-9]+", str(hit.get("objectID", ""))):  # not isdigit(): "²" passes it, int() rejects it
+            raise HNError(f"Unexpected Show HN hit without a numeric id: {hit!r}")
+        for key in ("title", "url"):
+            if not isinstance(hit.get(key), (str, type(None))):
+                raise HNError(f"Unexpected Show HN hit: {key!r} is not text: {hit!r}")
+        for key in ("points", "num_comments"):
+            value = hit.get(key)
+            if value is not None and (isinstance(value, bool) or not isinstance(value, int)):
+                raise HNError(f"Unexpected Show HN hit: {key!r} is not a number: {hit!r}")
+
+
+def search_show_hn(company: str, *, cache_dir: Path | None = None, use_cache: bool = True) -> dict:
+    """Show HN stories matching `company`, in Algolia relevance order.
+
+    Returns {"total_hits": int, "hits": [{"story_id", "title", "points", "num_comments", "url"}]},
+    with at most SHOW_HN_PAGE hits. total_hits is Algolia's full count, so callers can tell when
+    the list is only part of the matches.
+    """
+    data = _get_json(
+        "search",
+        {"tags": "show_hn", "query": company, "hitsPerPage": str(SHOW_HN_PAGE)},
+        ttl=SHOW_HN_TTL,
+        cache_dir=cache_dir,
+        use_cache=use_cache,
+        validate=_check_search_shape,
+    )
+    hits = []
+    for h in data["hits"]:
+        hits.append(
+            {
+                "story_id": int(h["objectID"]),
+                "title": h.get("title") or "",
+                "points": h.get("points") or 0,
+                "num_comments": h.get("num_comments") or 0,
+                "url": h.get("url"),
+            }
+        )
+    return {"total_hits": data["nbHits"], "hits": hits}
 
 
 def fetch_item(item_id: int, *, cache_dir: Path | None = None, use_cache: bool = True) -> dict:

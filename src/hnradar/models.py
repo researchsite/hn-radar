@@ -12,6 +12,24 @@ class Job(BaseModel):
     raw_text: str
 
 
+class ShowHNCandidate(BaseModel):
+    story_id: int
+    title: str
+    points: int
+    num_comments: int
+    url: str | None = None
+    domain_match: bool = False
+
+
+class ShowHNResult(BaseModel):
+    query: str
+    domain: str | None = None
+    candidates: list[ShowHNCandidate] = Field(default_factory=list)
+    total_hits: int
+    truncated: bool
+    low_confidence: bool
+
+
 class Language(BaseModel):
     name: str
     size_kb: int
