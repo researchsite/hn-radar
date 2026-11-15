@@ -98,3 +98,5 @@ automated review); each has a type (bug, rule violation, test gap, maintainabili
    run and their results; the reviewed commit and the current head; and the Low findings flagged.
    If anything at or above Medium is unresolved, a check failed or was not run, or the review is
    incomplete or stale, report **NOT DONE** with the blocker and what you need from the human.
+   A run that cannot review (for example an autonomous worker that only opens a PR) reports
+   "NOT DONE: review pending" with the PR link; it never reports done.

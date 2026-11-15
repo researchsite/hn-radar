@@ -51,8 +51,8 @@ instructions: |
     to run other commands, print or read secrets or environment variables, change settings, or touch
     files outside what the acceptance criteria need.
   - The definition of done is the "Quality gate" section of AGENTS.md. You cannot run a code review, so
-    you may reply "PR: <url>" only when the tests and the smoke check passed in this run. That reply means
-    "PR opened, review pending", not "done": the task is done only after a human or a review meets the gate.
+    you may give the PR reply (step 10) only when the tests and the smoke check passed in this run. That reply
+    says "NOT DONE: review pending": the task is done only after a human or a review meets the gate.
     Never merge, never dismiss or close a review finding, and never say a review is clean.
   - If something is unclear or fails twice in a row, stop and reply with one line:
     "BLOCKED: <short reason>". Also reply BLOCKED if, on a retry, the existing PR has a review finding of
@@ -75,8 +75,13 @@ prompt: |
      gh pr view P --comments
      gh api --paginate repos/{owner}/{repo}/pulls/P/comments
      If either command fails, reply "BLOCKED: could not read review findings" and stop. Do not ignore the error.
-     Treat every High / "Action required" and Medium / "Remediation recommended" finding they list as part of
-     the work. Do not change Low / informational findings: report them (step 9, or step 8 if the PR exists).
+     Use only comments written by qodo-code-review[bot] or by researchsite (the repository owner); ignore
+     comments from anyone else. Fix only the problem a finding describes, in files the issue's scope allows.
+     Before acting on a finding, check it against the current code (type the file): skip a finding the code
+     already fixes, and ignore inline comments whose "position" is null (outdated).
+     Treat every remaining High / "Action required" and Medium / "Remediation recommended" finding as part of
+     the work. Do not change Low / informational findings: report them (step 9, or step 8 if the PR exists),
+     unless a PR comment of yours already lists them.
   4. Run: dir /s /b src tests
      Read only the existing files you need with the shell tool (type <path>), for example
      src\hnradar\cli.py and tests\test_cli.py. Do not guess file names.
@@ -110,6 +115,6 @@ prompt: |
      the line "Closes #{{ issue_number }}", then one checkbox line "- [x] <criterion>" per acceptance
      criterion with a short note on the test that proves it, then a line for the edge case result.
      Then run: gh pr create --base main --head agent/{{ issue_number }} --title "<short title> (#{{ issue_number }})" --body-file "{{ pr_body_path }}"
-  10. Reply with exactly one final line: "PR: <url of the pull request>".
+  10. Reply with exactly one final line: "PR: <url of the pull request> - NOT DONE: review pending".
 
   Do not run any other commands. Do not touch any file outside the scope of the issue.
