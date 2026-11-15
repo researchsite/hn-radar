@@ -1,3 +1,5 @@
+import os
+
 import httpx
 import pytest
 
@@ -62,3 +64,34 @@ def test_http_error_propagates(respx_mock, tmp_path):
     respx_mock.get(SEARCH_URL).mock(return_value=httpx.Response(500))
     with pytest.raises(httpx.HTTPStatusError):
         hn.find_latest_hiring_story(cache_dir=tmp_path)
+
+
+def test_two_writers_on_one_cache_key_both_succeed(mock_hn, tmp_path, monkeypatch):
+    real_replace = os.replace
+    nested = []
+
+    def replace(src, dst):
+        if not nested:
+            nested.append(True)  # a second writer finishes the same key while the first is mid-write
+            hn.find_latest_hiring_story(cache_dir=tmp_path, use_cache=False)
+        real_replace(src, dst)
+
+    monkeypatch.setattr(os, "replace", replace)
+
+    story = hn.find_latest_hiring_story(cache_dir=tmp_path, use_cache=False)
+
+    assert story["id"] == STORY_ID
+    assert not list(tmp_path.glob("*.tmp"))
+    assert len(list(tmp_path.glob("*.json"))) == 1
+
+
+def test_failed_cache_write_leaves_no_temp_file(mock_hn, tmp_path, monkeypatch):
+    def broken_replace(src, dst):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(os, "replace", broken_replace)
+
+    with pytest.raises(OSError):
+        hn.find_latest_hiring_story(cache_dir=tmp_path)
+
+    assert not list(tmp_path.iterdir())

@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import tempfile
 import time
 from pathlib import Path
 
@@ -45,10 +46,16 @@ def _get_json(
         raise HNError(f"Invalid JSON from {path}") from exc
 
     cache_dir.mkdir(parents=True, exist_ok=True)
-    # Write then rename so an interrupted write can't leave a fresh, partial file.
-    tmp_file = cache_file.with_suffix(".tmp")
-    tmp_file.write_text(json.dumps(data), encoding="utf-8")
-    os.replace(tmp_file, cache_file)
+    # Write to a unique temp file, then rename, so an interrupted or concurrent write can't leave
+    # a fresh, partial cache file or clobber another writer's temp file.
+    fd, tmp_name = tempfile.mkstemp(dir=cache_dir, prefix=cache_file.stem, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as tmp_file:
+            json.dump(data, tmp_file)
+        os.replace(tmp_name, cache_file)
+    except BaseException:
+        Path(tmp_name).unlink(missing_ok=True)
+        raise
     return data
 
 
