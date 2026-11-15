@@ -75,3 +75,28 @@ would overwrite the full committed file.
    Applies to: every `typer.echo` / `print` in `src/hnradar/` that outputs post or profile text.
    Why: the author of a post controls that text, and an escape sequence in it can rewrite or hide
    what the user sees; a review found this in the `fetch-hiring` table.
+
+## Quality gate (definition of done)
+
+A coding task is done only when all of these hold. Findings come from any reviewer (a person or an
+automated review); each has a type (bug, rule violation, test gap, maintainability) and a severity.
+
+1. **High and Medium findings are fixed.** Every valid High or Medium finding is fixed, including
+   Medium bugs. A fix comes with a test or a reproduction that fails before the fix and passes after.
+2. **Low findings are reported, not silently fixed or dropped.** Leave Low findings (including Low
+   rule violations) unchanged and list each one in the final report for the human to decide.
+3. **Disagreements need evidence.** To call a finding invalid, cite the code, a test or a
+   reproduction. Only the human dismisses or closes a finding; an agent never does.
+4. **Checks pass.** `uv run pytest -q` and the smoke check under "Verify" pass in this run, and
+   the edge cases required by rule 7 are tested.
+5. **The review covers the latest commit.** After fixes, review again. For a pull request, the
+   latest completed review must be of the current head commit; a review of an older commit does not
+   count, and a review still running does not count.
+6. **Stop when stalled.** If a High or Medium finding is still open after 3 fix-and-review rounds,
+   or the same finding comes back unchanged, stop.
+7. **Final report.** State each finding with its type, severity, decision and evidence; the checks
+   run and their results; the reviewed commit and the current head; and the Low findings flagged.
+   If anything at or above Medium is unresolved, a check failed or was not run, or the review is
+   incomplete or stale, report **NOT DONE** with the blocker and what you need from the human.
+   A run that cannot review (for example an autonomous worker that only opens a PR) reports
+   "NOT DONE: review pending" with the PR link; it never reports done.

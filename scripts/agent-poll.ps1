@@ -127,7 +127,7 @@ function Invoke-Poll {
         if (($exit -eq 0) -and $prUrl -and (($out -join "`n") -notmatch "(?m)^\s*BLOCKED:")) {
             $prDone = $true   # from here on a bookkeeping failure must not relabel a finished issue
             Invoke-Native gh @("issue", "edit", "$n", "--remove-label", "agent-working") | Out-Null
-            Invoke-Native gh @("issue", "comment", "$n", "--body", "Agent run finished: $prUrl") | Out-Null
+            Invoke-Native gh @("issue", "comment", "$n", "--body", "Agent run opened a PR: $prUrl. Not done yet: the quality gate in AGENTS.md (checks and a review of the latest commit) is still pending. The poller does not verify the worker's test results.") | Out-Null
             # Only remove a clean worktree; uncommitted edits stay for a human to look at.
             $left = @(Invoke-Native git @("-C", $wt, "status", "--short"))
             if ($left.Count -eq 0) {
