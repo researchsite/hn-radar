@@ -185,33 +185,36 @@ def test_search_show_hn_http_error_and_bad_json(respx_mock, tmp_path):
     assert not list(tmp_path.iterdir())
 
 
-def test_two_writers_on_one_cache_key_both_succeed(mock_hn, tmp_path, monkeypatch):
+def test_two_writers_on_one_cache_key_both_succeed(respx_mock, tmp_path, monkeypatch):
+    show_hn_route(respx_mock, [make_show_hit(7, "Show HN: Acme")])
     real_replace = os.replace
     nested = []
 
     def replace(src, dst):
         if not nested:
             nested.append(True)  # a second writer finishes the same key while the first is mid-write
-            hn.find_latest_hiring_story(cache_dir=tmp_path, use_cache=False)
+            hn.search_show_hn("Acme", cache_dir=tmp_path, use_cache=False)
         real_replace(src, dst)
 
     monkeypatch.setattr(os, "replace", replace)
 
-    story = hn.find_latest_hiring_story(cache_dir=tmp_path, use_cache=False)
+    found = hn.search_show_hn("Acme", cache_dir=tmp_path, use_cache=False)
 
-    assert story["id"] == STORY_ID
+    assert found["hits"][0]["story_id"] == 7
     assert not list(tmp_path.glob("*.tmp"))
     assert len(list(tmp_path.glob("*.json"))) == 1
 
 
-def test_failed_cache_write_leaves_no_temp_file(mock_hn, tmp_path, monkeypatch):
+def test_failed_cache_write_leaves_no_temp_file(respx_mock, tmp_path, monkeypatch):
+    show_hn_route(respx_mock, [make_show_hit(7, "Show HN: Acme")])
+
     def broken_replace(src, dst):
         raise OSError("disk full")
 
     monkeypatch.setattr(os, "replace", broken_replace)
 
     with pytest.raises(OSError):
-        hn.find_latest_hiring_story(cache_dir=tmp_path)
+        hn.search_show_hn("Acme", cache_dir=tmp_path)
 
     assert not list(tmp_path.iterdir())
 
@@ -256,6 +259,8 @@ def test_search_show_hn_wrong_shape_raises_hn_error_and_is_not_cached(respx_mock
         {"objectID": "5", "points": "many"},
         {"objectID": "5", "num_comments": True},
         {"objectID": "5", "points": 1.5},
+        {"objectID": "5", "points": -3},
+        {"objectID": "5", "num_comments": -1},
     ],
 )
 def test_search_show_hn_hit_field_of_wrong_type_fails_loudly(respx_mock, tmp_path, hit):

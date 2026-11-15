@@ -102,8 +102,8 @@ def _check_search_shape(data) -> None:
                 raise HNError(f"Unexpected Show HN hit: {key!r} is not text: {hit!r}")
         for key in ("points", "num_comments"):
             value = hit.get(key)
-            if value is not None and (isinstance(value, bool) or not isinstance(value, int)):
-                raise HNError(f"Unexpected Show HN hit: {key!r} is not a number: {hit!r}")
+            if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
+                raise HNError(f"Unexpected Show HN hit: {key!r} is not a count: {hit!r}")
 
 
 def search_show_hn(company: str, *, cache_dir: Path | None = None, use_cache: bool = True) -> dict:
