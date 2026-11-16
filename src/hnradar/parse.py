@@ -69,8 +69,24 @@ def html_to_text(html: str) -> str:
     return "\n".join(line for line in lines if line)
 
 
+# "Go" is also an ordinary word, so it only counts as the language when written with a capital G and either
+# sits in a list next to another known stack term ("Python, Go, Rust", "Go/Rust", "Go and Kubernetes") or is
+# followed by a role word ("Go developer"). "Ready to Go, join us" and "Go for it!" stay out. Misses are
+# fine; false hits are not.
+_KNOWN = "|".join(re.escape(k) for k in sorted(_STACK, key=len, reverse=True))
+_GO = r"(?<![\w+#./=?&:%-])Go(?![\w+#])"
+_TERM = r"(?<![\w+#=?&:%])(?i:" + _KNOWN + r")(?![\w+#])"
+_SEP = r"\s*(?:[,/|]|\s(?:and|or))\s*"
+_GO_RE = re.compile(
+    _GO + r"(?:\s+(?:developers?|engineers?|services?|code)\b|" + _SEP + _TERM + r")"
+    r"|" + _TERM + _SEP + _GO
+)
+
+
 def extract_stack(text: str) -> list[str]:
-    found = (_STACK[m.group(1).lower()] for m in _STACK_RE.finditer(text))
+    found = [_STACK[m.group(1).lower()] for m in _STACK_RE.finditer(text)]
+    if "Go" not in found and _GO_RE.search(text):
+        found.append("Go")
     return list(dict.fromkeys(found))
 
 
