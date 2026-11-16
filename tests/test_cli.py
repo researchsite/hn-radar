@@ -486,6 +486,42 @@ def test_match_unreadable_profiles_dir_is_a_clean_error(tmp_path, monkeypatch):
     assert "Error:" in result.output and "Traceback" not in result.output
 
 
+def test_match_two_profiles_differing_only_by_case_is_an_error(tmp_path, monkeypatch):
+    args = _match_files(tmp_path, [_job(1, ["Python"])], None)
+    profiles = tmp_path / "profiles"
+    monkeypatch.setattr("pathlib.Path.iterdir", lambda self: iter([profiles / "OCTO.json", profiles / "Octo.json"]))
+
+    result = runner.invoke(app, args)  # `match octo`: neither file is the exact spelling
+
+    assert result.exit_code == 1
+    assert "differ only by case" in result.output and "OCTO.json" in result.output
+
+
+def test_match_exact_spelling_does_not_hide_a_case_variant(tmp_path, monkeypatch):
+    args = _match_files(tmp_path, [_job(1, ["Python"])], dict(MATCH_PROFILE, username="Octo"))
+    profiles = tmp_path / "profiles"
+    (profiles / "Octo.json").write_text(json.dumps(dict(MATCH_PROFILE, username="Octo")), encoding="utf-8")
+    monkeypatch.setattr("pathlib.Path.iterdir", lambda self: iter([profiles / "Octo.json", profiles / "OCTO.json"]))
+    args[1] = "Octo"  # the exact spelling exists, but so does OCTO.json: still ambiguous
+
+    result = runner.invoke(app, args)
+
+    assert result.exit_code == 1
+    assert "differ only by case" in result.output
+
+
+@pytest.mark.parametrize("target", ["jobs", "profile"])
+def test_match_deeply_nested_json_is_a_clean_error(tmp_path, target):
+    args = _match_files(tmp_path, [], MATCH_PROFILE)
+    path = tmp_path / "jobs.json" if target == "jobs" else tmp_path / "profiles" / "octo.json"
+    path.write_text("[" * 200000 + "]" * 200000, encoding="utf-8")
+
+    result = runner.invoke(app, args)
+
+    assert result.exit_code == 1
+    assert "Error:" in result.output and "Traceback" not in result.output
+
+
 def test_match_username_case_is_not_significant(tmp_path):
     args = _match_files(tmp_path, [_job(1, ["Python"])], dict(MATCH_PROFILE, username="Octo"))
 

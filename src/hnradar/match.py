@@ -13,9 +13,17 @@ REMOTE_POINTS = 5  # a small bonus; it never makes a job without any stack overl
 MAX_SCORE = 100
 
 
+# Names GitHub topics and job posts use for the same thing (keys and values are already normalised).
+_ALIASES = {
+    "postgres": "postgresql", "psql": "postgresql", "k8s": "kubernetes", "golang": "go",
+    "js": "javascript", "ts": "typescript", "node": "nodejs", "reactjs": "react", "vuejs": "vue",
+}
+
+
 def _norm(term: str) -> str:
-    """'Next.js' and 'nextjs' are the same term; 'C++' and 'C#' keep their symbol."""
-    return re.sub(r"[^a-z0-9+#]", "", term.lower())
+    """'Next.js' and 'nextjs' are the same term; 'C++' and 'C#' keep their symbol; 'k8s' is 'kubernetes'."""
+    key = re.sub(r"[^a-z0-9+#]", "", term.lower())
+    return _ALIASES.get(key, key)
 
 
 def score_job(profile: Profile, job: Job) -> Match | None:

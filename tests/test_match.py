@@ -124,6 +124,36 @@ def test_a_profile_with_topics_but_no_languages_still_matches_on_topics():
     assert [(r.kind, r.evidence) for r in result[0].reasons] == [("topic", "nextjs")]
 
 
+@pytest.mark.parametrize(
+    "job_term, profile_term",
+    [("PostgreSQL", "postgres"), ("Kubernetes", "k8s"), ("Go", "golang"), ("Node.js", "node"), ("TypeScript", "ts")],
+)
+def test_common_aliases_match_in_both_directions(job_term, profile_term):
+    as_topic = Profile(username="x", topics=[profile_term])
+    as_language = Profile(username="x", languages=[Language(name=profile_term, size_kb=1)])
+
+    assert top_matches(as_topic, [job(1, [job_term])])
+    assert top_matches(as_language, [job(1, [job_term])])
+    assert top_matches(Profile(username="x", topics=[job_term]), [job(1, [profile_term])])
+
+
+def test_scoring_streams_jobs_instead_of_holding_a_list(monkeypatch):
+    from hnradar import match
+
+    seen = []
+    real = match.heapq.nlargest
+
+    def spy(n, iterable, key=None):
+        seen.append(iterable)
+        return real(n, iterable, key=key)
+
+    monkeypatch.setattr(match.heapq, "nlargest", spy)
+
+    top_matches(PROFILE, (job(i, ["Python"]) for i in range(1, 2000)))  # a generator in, no list of 2000 matches
+
+    assert len(seen) == 1 and not isinstance(seen[0], (list, tuple))  # a list-based version never reaches here
+
+
 def test_blank_terms_never_match():
     p = Profile(username="x", languages=[Language(name="  ", size_kb=1)], topics=["", "!!"])
 

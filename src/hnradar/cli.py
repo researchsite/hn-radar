@@ -142,7 +142,7 @@ def _read_json_file(path: Path, what: str, hint: str):
     except FileNotFoundError as exc:
         typer.echo(f"Error: {what} not found at {path}. {hint}", err=True)
         raise typer.Exit(1) from exc
-    except (OSError, ValueError) as exc:  # unreadable or not JSON
+    except (OSError, ValueError, RecursionError) as exc:  # unreadable, not JSON, or nested too deeply
         typer.echo(f"Error: could not read {what} at {path}: {exc}", err=True)
         raise typer.Exit(1) from exc
 
@@ -150,13 +150,20 @@ def _read_json_file(path: Path, what: str, hint: str):
 def _profile_path(profiles_dir: Path, username: str) -> Path:
     """`fingerprint Octo` writes Octo.json; GitHub logins are case-insensitive, so `match octo` finds it too."""
     exact = profiles_dir / f"{username}.json"
-    if exact.exists() or not profiles_dir.is_dir():
+    if not profiles_dir.is_dir():
         return exact
     wanted = f"{username}.json".lower()
     try:
-        return next((p for p in sorted(profiles_dir.iterdir()) if p.name.lower() == wanted), exact)
+        found = sorted(p for p in profiles_dir.iterdir() if p.name.lower() == wanted)
     except OSError:  # unreadable or vanished directory: let the normal read report the real error
         return exact
+    if len(found) > 1:  # which one is current? Guessing could rank jobs from a stale profile
+        names = ", ".join(p.name for p in found)
+        typer.echo(f"Error: several profiles differ only by case ({names}). Keep one and remove the others.", err=True)
+        raise typer.Exit(1)
+    if exact in found or exact.exists():
+        return exact
+    return found[0] if found else exact
 
 
 @app.command("match")
