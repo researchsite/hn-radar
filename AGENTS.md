@@ -100,3 +100,17 @@ automated review); each has a type (bug, rule violation, test gap, maintainabili
    incomplete or stale, report **NOT DONE** with the blocker and what you need from the human.
    A run that cannot review (for example an autonomous worker that only opens a PR) reports
    "NOT DONE: review pending" with the PR link; it never reports done.
+
+## Before asking for review (checklist)
+
+Run through this before every review, so the review finds new problems and not the ones we already know. Each item comes from a finding that earlier reviews raised.
+
+1. **Ticket, line by line.** Map every acceptance criterion and edge case to a test or a written decision. If two lines of the ticket disagree, decide, edit the ticket, and say so in the PR; a stale ticket produces stale findings.
+2. **Every input fails cleanly.** For each file, API response, cache entry and CLI argument the change reads, list the failures: missing, unreadable, not JSON, nested too deeply, wrong shape or types, empty, huge, a negative or out-of-range number. Each one ends in `Error: ...` and exit 1, never a traceback and never a half result.
+3. **Ambiguity is an error, not a guess.** If more than one candidate fits (two files that differ only by case, several matching records), stop and say which; never pick the first.
+4. **Identity is checked.** A name taken from the command line that selects a file must match what is inside the file, ignoring case where the source does.
+5. **One source of truth.** Search the code for an existing regex, constant, alias table or helper before writing a new one. Names that must match across two systems (job stack versus GitHub topics, `Go` versus `golang`, `k8s`, `postgres`) go through one shared normaliser.
+6. **Every fix has a test that fails without it.** A claim in the PR description ("fixed X") must point to its test. At-the-limit cases (exactly the cap) are tested, not only over and under.
+7. **Ask what else a fix touches.** After each change, grep for other callers and other copies of the same idea before asking for the next review.
+8. **Run it on real data** and read the output, not only the tests: the real output is where a missing `Go` or a wrong ranking shows up.
+9. **State what the PR does not check** (skipped reviewers, untested paths, known limits) in the description.
