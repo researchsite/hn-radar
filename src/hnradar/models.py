@@ -10,6 +10,8 @@ class Job(BaseModel):
     stack: list[str] = Field(default_factory=list)
     url: str | None = None
     raw_text: str
+    closed: bool = False  # True only with evidence; False means "no evidence", not "open"
+    closed_comment_id: int | None = None  # the poster's reply that says so
 
 
 class ShowHNCandidate(BaseModel):
