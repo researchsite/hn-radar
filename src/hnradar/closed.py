@@ -1,6 +1,7 @@
 """Find the reply in which the poster of a job says the job is closed. Pure functions, no I/O."""
 
 import re
+from bisect import bisect_left, bisect_right
 
 from hnradar.parse import html_to_text
 
@@ -34,31 +35,53 @@ _CLOSING = re.compile(
 _CONDITION = re.compile(r"\b(?:if|once|when|until|unless|whether)\b", re.I)
 # A negation only reaches to the end of its own clause, so "The position isn't filled yet, but applications
 # are closed" still counts: the later clause is a plain statement.
-_NEGATION = re.compile(r"\b(?:not|never)\b|n['’]t\b", re.I)
+_NEGATION = re.compile(r"\b(?:not|never|no|neither|nor|none)\b|n['’]t\b", re.I)
 _CLAUSE_BREAK = re.compile(r"[,;:—–]|\b(?:but|however|though|although)\b", re.I)
-# The rest of the sentence can take it back: "some positions are filled, but we're still hiring".
+# An exception after the phrase takes it back: "Position filled, unless you are a senior."
+_QUALIFIER = re.compile(r"\b(?:unless|except|if|apart from|besides|only)\b", re.I)
+# The rest of the reply can take it back: "some positions are filled, but we're still hiring".
 _STILL_OPEN = re.compile(
     r"\bstill\s+(?:hiring|open|accepting|taking|looking\s+for|recruiting)\b"
-    r"|\bwe(?:['’]re|\s+are)\s+(?:also\s+)?(?:hiring|looking\s+for|recruiting)\b",  # "filled backend, we're hiring for frontend"
+    r"|\bwe(?:['’]re|\s+are)\s+(?:also\s+)?(?:hiring|looking\s+for|recruiting)\b"  # "filled backend, we're hiring for frontend"
+    r"|\b(?:remains?|remained)\s+open\b|\b(?:is|are)\s+(?:still\s+|also\s+)?open\b",  # "applications remain open"
     re.I,
 )
+# Someone else's question, quoted or in brackets, is not the poster's statement: We got: "Is it filled?", but ...
+_QUOTED_QUESTION = re.compile(r'"[^"]*\?\s*"|“[^”]*\?\s*”|\([^()]*\?\s*\)')
 _HYPHEN_COMPOUND = re.compile(r"-\w")  # "closed-source", "closed-loop": the word is part of a compound
 _QUOTE_END = " \t\"'“”‘’)]}»"
 _SENTENCE = re.compile(r"(?<=[.!?])\s+|\n")
 
 
+def _starts(pattern: re.Pattern, sentence: str) -> list[int]:
+    return [m.start() for m in pattern.finditer(sentence)]
+
+
 def says_closed(text: str) -> bool:
+    text = _QUOTED_QUESTION.sub(" ", text)
     if _STILL_OPEN.search(text):  # the whole reply: "We filled the backend role. We're hiring for frontend."
         return False
     for sentence in _SENTENCE.split(text):
-        if sentence.rstrip(_QUOTE_END).endswith("?"):  # also a quoted question: We got: "Is it filled?"
+        if sentence.rstrip(_QUOTE_END).endswith("?"):
             continue
+        # Positions are collected once per sentence and searched by bisect, so a long reply with many
+        # rejected matches stays linear instead of rescanning the text before every match.
+        conditions, negations, qualifiers = (_starts(p, sentence) for p in (_CONDITION, _NEGATION, _QUALIFIER))
+        break_ends = [m.end() for m in _CLAUSE_BREAK.finditer(sentence)]
         for match in _CLOSING.finditer(sentence):  # every phrase, so a later plain statement still counts
             if _HYPHEN_COMPOUND.match(sentence, match.end()):
                 continue
-            before = sentence[: match.start()]
-            if not _CONDITION.search(before) and not _NEGATION.search(_CLAUSE_BREAK.split(before)[-1]):
-                return True
+            if conditions and conditions[0] < match.start():
+                continue
+            at = bisect_right(break_ends, match.start())
+            clause_start = break_ends[at - 1] if at else 0
+            n = bisect_left(negations, clause_start)
+            if n < len(negations) and negations[n] < match.start():
+                continue
+            q = bisect_left(qualifiers, match.end())
+            if q < len(qualifiers):
+                continue
+            return True
     return False
 
 

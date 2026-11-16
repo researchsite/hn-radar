@@ -1,4 +1,6 @@
 import json
+import os
+import time
 
 import httpx
 import pytest
@@ -99,6 +101,13 @@ def test_closing_wording_is_detected(text):
         "We filled the backend role, we're hiring for frontend.",
         "We filled the backend role. We are also hiring for frontend, see below.",
         "Position filled. We're looking for a frontend engineer.",
+        "Applications are closed for the old opening, but applications remain open for this position.",
+        "No positions are filled yet.",
+        "Neither role is filled.",
+        "Position filled, unless you are a senior.",
+        "Position filled, except for referrals.",
+        'Someone asked "Is the position filled?", but there is no answer.',
+        "Someone asked “Is the role filled?”, and we are checking.",
         "We are hiring!",
         "",
     ],
@@ -215,3 +224,32 @@ def test_fetch_hiring_still_works_when_the_thread_has_no_authors_at_all(mock_hn,
 
     assert result.exit_code == 0, result.output
     assert not any(j["closed"] for j in json.loads(out.read_text(encoding="utf-8")))
+
+
+def test_long_reply_with_many_rejected_matches_is_linear():
+    text = "not applications are closed " * 20000  # every match is rejected by the negation, no sentence stop
+    start = time.perf_counter()
+    assert not says_closed(text)
+    assert time.perf_counter() - start < 2  # quadratic rescanning of the prefix took minutes at this size
+
+
+def test_fetch_hiring_picks_up_a_notice_posted_after_the_first_run(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    open_thread = [{**post(), "id": 101}]
+    closed_thread = [{**post(reply(11, "poster", "Applications are closed.")), "id": 101}]
+    mock_thread(respx_mock, open_thread)
+    out = tmp_path / "jobs.json"
+
+    assert runner.invoke(app, ["fetch-hiring", "--out", str(out)]).exit_code == 0
+    first = json.loads(out.read_text(encoding="utf-8"))[0]
+    assert (first["closed"], first["closed_comment_id"]) == (False, None)
+
+    item = {"id": STORY_ID, "type": "story", "title": "Ask HN: Who is hiring? (November 2026)", "children": closed_thread}
+    respx_mock.get(ITEM_URL).mock(return_value=httpx.Response(200, json=item))
+    stale = time.time() - 7 * 60 * 60  # past the 6 h item cache TTL
+    for cached in (tmp_path / "data" / "cache").glob("*.json"):
+        os.utime(cached, (stale, stale))
+
+    assert runner.invoke(app, ["fetch-hiring", "--out", str(out)]).exit_code == 0
+    second = json.loads(out.read_text(encoding="utf-8"))[0]
+    assert (second["closed"], second["closed_comment_id"]) == (True, 11)
