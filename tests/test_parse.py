@@ -1,3 +1,5 @@
+import pytest
+
 from hnradar.parse import extract_stack, html_to_text, parse_comment
 
 from conftest import FREEFORM_COMMENT, ONSITE_COMMENT, PIPE_COMMENT
@@ -86,3 +88,32 @@ def test_html_to_text_unescapes_and_splits_paragraphs():
 
 def test_stack_uses_whole_words():
     assert extract_stack("JavaScript, Java and golang; Go to market") == ["JavaScript", "Java", "Go"]
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("Stack: Python, Go, Rust, or Zig", True),
+        ("We write Go and Kubernetes, not Java", True),
+        ("We write Go and run our own database", False),  # a miss is fine
+        ("Ready to Go, join us", False),
+        ("see https://example.test/?lang=Go,Rust", False),
+        ("see https://example.test/?x=Go/Rust&y=Python,Go", False),
+        ("Lets Go: apply now", False),
+        ("Join the Go/Rust team", True),
+        ("Staff Backend Engineer, Go developer positions", True),
+        ("SFU in Go, cascading", False),  # a miss is fine
+        ("Go for it! Custom Discord apps", False),  # the English verb
+        ("We move infrastructure from Go into Elixir", False),  # a miss is fine, a false hit is not
+        ("Let's go build things", False),  # lower case
+        ("GoLand and Gotham", False),
+        ("ago, Gone, Google", False),
+        ("", False),
+    ],
+)
+def test_go_is_only_the_language_in_clear_contexts(text, expected):
+    assert ("Go" in extract_stack(text)) is expected
+
+
+def test_golang_and_go_do_not_double_count():
+    assert extract_stack("Golang, Go, Rust").count("Go") == 1
