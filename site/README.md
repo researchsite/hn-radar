@@ -10,7 +10,12 @@ Only public build-time data is shown (`data/jobs.json`, later pulse and Show HN 
 site/
   README.md              this file (committed)
   careers/               THE deployable folder; copied to the site root as /careers/
-    index.html           the first page (job explorer); more pages go next to it
+    index.html           job explorer (search, filters, detail view)
+    insights.html        top technologies, remote share, what posts leave out
+    company.html         placeholder: coming soon (issue 31)
+    journey.html         placeholder: coming soon (issue 31)
+    check.html           placeholder: coming soon (issue 31)
+    hn.css, hn.js        shared styles and helpers (text cleaning, safe links, designed states)
     data/jobs.json       dev copy of ../../data/jobs.json (git-ignored, refreshed by the sync script)
   includes/              dev copy of the live site's design system, nav and footer (git-ignored)
   fonts/                 dev copy of the live site's fonts (git-ignored)

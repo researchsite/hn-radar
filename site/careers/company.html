@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Company page | HN Radar | RawWeights</title>
+  <meta name="description" content="What a company's own users said on Hacker News, with links to every comment. Coming soon.">
+  <meta name="author" content="RawWeights">
+  <meta name="robots" content="noindex">
+  <link rel="canonical" href="https://rawweights.com/careers/company.html">
+
+  <script>(function(){var t=localStorage.getItem('rw-theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
+
+  <link rel="stylesheet" href="../includes/brand.css">
+  <link rel="stylesheet" href="./hn.css">
+  <script type="text/javascript" async src="../includes/analytics.js"></script>
+</head>
+<body>
+
+<div id="rw-nav"></div>
+<script src="../includes/rw-nav.js?v=20261106"></script>
+
+<div id="content" class="rw-hn-wrap">
+  <div id="hn-pages"></div>
+  <h1>Company page</h1>
+  <div class="rw-hn-state" role="status">
+    <strong>Coming soon</strong>
+    <span>This page will show a company's hiring post, its Show HN thread, and what its users said: what they liked, what broke and what they asked for. Every point will link to the Hacker News comment it came from. It is not built yet.</span>
+    <div><a class="rw-hn-btn" href="./index.html">Browse the jobs</a></div>
+  </div>
+</div>
+
+<div id="rw-footer" data-linkedin="" data-related='[]'></div>
+<script src="../includes/rw-footer.js?v=20261107"></script>
+
+<script src="./hn.js"></script>
+<script>document.getElementById('hn-pages').appendChild(window.HN.pages('company.html'));</script>
+</body>
+</html>

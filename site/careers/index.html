@@ -3,39 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>HN Radar | RawWeights</title>
-  <meta name="description" content="Jobs from the Hacker News Who is hiring thread, parsed and searchable. Public data only.">
+  <title>HN Radar: Who is hiring, searchable | RawWeights</title>
+  <meta name="description" content="Search and filter the Hacker News Who is hiring thread by company, role, stack and remote. Parsed from public posts; every row links to the original comment.">
   <meta name="author" content="RawWeights">
   <link rel="canonical" href="https://rawweights.com/careers/">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://rawweights.com/careers/">
+  <meta property="og:title" content="HN Radar: Who is hiring, searchable | RawWeights">
+  <meta property="og:description" content="Search and filter the Hacker News Who is hiring thread by company, role, stack and remote.">
 
   <!-- Theme: must be first, prevents a dark/light flash. Same script as the other pages. -->
   <script>(function(){var t=localStorage.getItem('rw-theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
 
   <!-- Same relative paths as the live site: this folder is copied to the site root as /careers/ -->
   <link rel="stylesheet" href="../includes/brand.css">
+  <link rel="stylesheet" href="./hn.css">
   <script type="text/javascript" async src="../includes/analytics.js"></script>
-
-  <style>
-    /* Page-specific styles use the rw-hn- prefix and brand tokens only (--rw-*). *
-    .rw-hn-wrap { max-width: 960px; margin: 0 auto; padding: 32px 16px 48px;  /* body already clears the fixed nav */ }
-    .rw-hn-wrap h1 { font-family: var(--rw-font-display); font-size: 32px; margin: 0 0 8px; color: var(--rw-text); }
-    .rw-hn-lead { color: var(--rw-text-muted); margin: 0 0 24px; }
-    .rw-hn-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; }
-    .rw-hn-controls input, .rw-hn-controls select {
-      padding: 10px 12px; border: 1px solid var(--rw-border); border-radius: 8px;
-      background: var(--rw-card); color: var(--rw-text); font: inherit;
-    }
-    .rw-hn-controls input { flex: 1 1 240px; }
-    .rw-hn-count { color: var(--rw-text-muted); font-size: 14px; }
-    .rw-hn-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
-    .rw-hn-item { background: var(--rw-card); border: 1px solid var(--rw-border); border-radius: var(--rw-r-md); padding: 16px; }
-    .rw-hn-item h2 { font-family: var(--rw-font-display); font-size: 18px; margin: 0 0 4px; color: var(--rw-text); }
-    .rw-hn-meta { color: var(--rw-text-muted); font-size: 14px; margin: 0 0 8px; }
-    .rw-hn-chip { display: inline-block; font-size: 12px; padding: 2px 8px; margin: 0 4px 4px 0; border-radius: 999px;
-      background: var(--rw-orange-light); color: var(--rw-text); }
-    .rw-hn-item a { color: var(--rw-link); }
-    .rw-hn-state { padding: 24px; border: 1px dashed var(--rw-border); border-radius: var(--rw-r-md); color: var(--rw-text-muted); }
-  </style>
 </head>
 <body>
 
@@ -43,88 +27,313 @@
 <script src="../includes/rw-nav.js?v=20261106"></script>
 
 <div id="content" class="rw-hn-wrap">  <!-- a div, not <main>: the page owns this area; nav and footer are the site's -->
-  <h1>HN Radar</h1>
-  <p class="rw-hn-lead">Jobs from the Hacker News "Who is hiring?" thread, parsed into fields. Public data only; each row links to its HN comment.</p>
+  <div id="hn-pages"></div>
+  <h1>Who is hiring, searchable</h1>
+  <p class="rw-hn-lead">Posts from the Hacker News "Who is hiring?" thread, parsed into fields. Parsing is automatic and can be wrong, so every row links to the original comment.</p>
 
-  <div class="rw-hn-controls">
-    <input id="hn-q" type="search" placeholder="Search company, role or stack" aria-label="Search company, role or stack">
-    <select id="hn-remote" aria-label="Remote filter">
-      <option value="all">Remote: any</option>
-      <option value="yes">Remote: yes</option>
-      <option value="no">Remote: no</option>
-      <option value="unknown">Remote: not stated</option>
-    </select>
-    <span id="hn-count" class="rw-hn-count" aria-live="polite"></span>
+  <div class="rw-hn-panel" role="search" aria-label="Filter jobs">
+    <div class="rw-hn-row">
+      <div class="rw-hn-field rw-hn-grow">
+        <label for="hn-q">Search company, role, location or stack</label>
+        <input id="hn-q" type="search" autocomplete="off" placeholder="for example: rust, climate, Berlin">
+      </div>
+      <div class="rw-hn-field">
+        <span class="rw-hn-label" id="hn-remote-label">Remote</span>
+        <div class="rw-hn-seg" id="hn-remote" role="radiogroup" aria-labelledby="hn-remote-label">
+          <input type="radio" name="remote" id="r-all" value="all" checked><label for="r-all">Any</label>
+          <input type="radio" name="remote" id="r-yes" value="yes"><label for="r-yes">Remote</label>
+          <input type="radio" name="remote" id="r-no" value="no"><label for="r-no">Not remote</label>
+          <input type="radio" name="remote" id="r-unk" value="unknown"><label for="r-unk">Not stated</label>
+        </div>
+      </div>
+      <div class="rw-hn-field">
+        <label for="hn-sort">Sort</label>
+        <select id="hn-sort">
+          <option value="thread">Thread order</option>
+          <option value="company">Company A to Z</option>
+          <option value="stack">Most technologies listed</option>
+        </select>
+      </div>
+      <label class="rw-hn-check"><input type="checkbox" id="hn-link"> Has a job link</label>
+    </div>
+    <div style="margin-top:14px">
+      <div class="rw-hn-label" id="hn-stack-label">Technologies (pick several to require all of them)</div>
+      <ul class="rw-hn-chips" id="hn-stack" aria-labelledby="hn-stack-label" style="margin-top:6px"></ul>
+      <button type="button" class="rw-hn-linkbtn" id="hn-stack-more" hidden></button>
+    </div>
   </div>
 
-  <ul id="hn-list" class="rw-hn-list"></ul>
-  <div id="hn-state" class="rw-hn-state" hidden></div>
+  <div id="hn-state" class="rw-hn-state" role="status" hidden></div>
+
+  <div id="hn-results" hidden>
+    <div class="rw-hn-bar">
+      <p class="rw-hn-count" id="hn-count" role="status" aria-live="polite"></p>
+      <button type="button" class="rw-hn-btn" id="hn-clear" hidden>Clear filters</button>
+    </div>
+
+    <div class="rw-hn-panel rw-hn-insight" id="hn-insight" aria-label="About these results"></div>
+
+    <ul id="hn-list" class="rw-hn-list"></ul>
+    <p style="text-align:center;margin-top:16px"><button type="button" class="rw-hn-btn" id="hn-more" hidden></button></p>
+  </div>
+
+  <dialog id="hn-dialog" class="rw-hn-dialog" aria-labelledby="hn-dlg-title">
+    <div class="rw-hn-dlg-head">
+      <div>
+        <h2 id="hn-dlg-title" style="margin:0"></h2>
+        <p class="rw-hn-meta" id="hn-dlg-meta" style="margin:2px 0 0"></p>
+      </div>
+      <button type="button" class="rw-hn-btn" id="hn-dlg-close" aria-label="Close details">Close</button>
+    </div>
+    <div class="rw-hn-dlg-body" id="hn-dlg-body"></div>
+  </dialog>
 </div>
 
 <div id="rw-footer" data-linkedin="" data-related='[]'></div>
 <script src="../includes/rw-footer.js?v=20261107"></script>
 
+<script src="./hn.js"></script>
 <script>
 (function () {
   'use strict';
-  var MAX_TEXT = 400;       // long posts are cut, with a link to the full comment
-  var jobs = [];
+  var H = window.HN, el = H.el, clean = H.clean;
   var $ = function (id) { return document.getElementById(id); };
+  var PAGE = 50;          // rows added per "Show more": keeps the page light
+  var SNIPPET = 260;      // long posts are cut in the list, with a link to the full text
+  var TOP_STACK = 16;     // technology chips shown before "Show all"
 
-  // Post text is attacker-controlled: it is only ever written with textContent, and control and
-  // bidirectional/format characters are removed first (same idea as AGENTS.md rule 8 for the terminal).
-  function clean(text) {
-    return String(text == null ? '' : text)
-      .replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩﻿]/g, ' ')
-      .replace(/\s+/g, ' ').trim();
+  var jobs = [];          // normalised copies; the post text is cleaned once, here
+  var sel = {};           // selected stack names (lower-case key)
+  var limit = PAGE, showAllStack = false, lastOpener = null;
+
+  document.getElementById('hn-pages').appendChild(H.pages('index.html'));
+
+  function prep(j) {
+    var url = H.safeUrl(j.url);
+    return {
+      id: parseInt(j.comment_id, 10),
+      company: clean(j.company),
+      role: clean(j.role),
+      location: clean(j.location),
+      remote: j.remote === true ? true : j.remote === false ? false : null,
+      stack: (Array.isArray(j.stack) ? j.stack : []).map(clean).filter(Boolean),
+      url: url,
+      text: H.cleanBlock(j.raw_text),
+      flat: clean(j.raw_text)
+    };
   }
+  function key(s) { return s.toLowerCase(); }
+  function rk(j) { return j.remote === true ? 'yes' : j.remote === false ? 'no' : 'unknown'; }
+  function remoteText(j) { return j.remote === true ? 'Remote' : j.remote === false ? 'Not remote' : 'Remote not stated'; }
 
-  function showState(msg) { var s = $('hn-state'); s.textContent = msg; s.hidden = !msg; }
-
-  function remoteKey(j) { return j.remote === true ? 'yes' : j.remote === false ? 'no' : 'unknown'; }
-
-  function matches(j, q, remote) {
-    if (remote !== 'all' && remoteKey(j) !== remote) return false;
-    if (!q) return true;
-    var hay = [j.company, j.role, (j.stack || []).join(' ')].map(clean).join(' ').toLowerCase();
-    return hay.indexOf(q) !== -1;
+  function filters() {
+    return { q: clean($('hn-q').value).toLowerCase(), remote: document.querySelector('input[name="remote"]:checked').value, link: $('hn-link').checked };
   }
+  function passes(j, f, ignoreStack) {
+    if (f.remote !== 'all' && rk(j) !== f.remote) return false;
+    if (f.link && !j.url) return false;
+    if (!ignoreStack) {
+      var have = j.stack.map(key);
+      for (var k in sel) if (have.indexOf(k) === -1) return false;
+    }
+    if (f.q) {
+      var hay = (j.company + ' ' + j.role + ' ' + j.location + ' ' + j.stack.join(' ')).toLowerCase();
+      return f.q.split(' ').every(function (w) { return hay.indexOf(w) !== -1; });
+    }
+    return true;
+  }
+  function sorted(list) {
+    var by = $('hn-sort').value, out = list.slice();
+    if (by === 'company') out.sort(function (a, b) { return (a.company || '\uffff').localeCompare(b.company || '\uffff', undefined, { sensitivity: 'base' }); });
+    else if (by === 'stack') out.sort(function (a, b) { return b.stack.length - a.stack.length; });
+    return out;
+  }
+  function active(f) { return !!(f.q || f.remote !== 'all' || f.link || Object.keys(sel).length); }
 
+  // ---- list ----
   function card(j) {
-    var li = document.createElement('li'); li.className = 'rw-hn-item';
-    var h = document.createElement('h2'); h.textContent = clean(j.company) || '(no company)'; li.appendChild(h);
-    var meta = document.createElement('p'); meta.className = 'rw-hn-meta';
-    meta.textContent = [clean(j.role) || 'role not stated', clean(j.location), j.remote === true ? 'remote' : j.remote === false ? 'not remote' : 'remote not stated'].filter(Boolean).join(' | ');
-    li.appendChild(meta);
-    (j.stack || []).forEach(function (s) { var c = document.createElement('span'); c.className = 'rw-hn-chip'; c.textContent = clean(s); li.appendChild(c); });
-    var text = clean(j.raw_text);
-    if (text) { var p = document.createElement('p'); p.textContent = text.length > MAX_TEXT ? text.slice(0, MAX_TEXT) + '...' : text; li.appendChild(p); }
-    var a = document.createElement('a');
-    a.href = 'https://news.ycombinator.com/item?id=' + encodeURIComponent(String(parseInt(j.comment_id, 10)));
-    a.textContent = 'Read the comment on HN'; a.rel = 'noopener noreferrer'; li.appendChild(a);
+    var li = el('li', { className: 'rw-hn-item' });
+    li.appendChild(el('h2', {}, j.company || 'Company not stated'));
+    li.appendChild(el('p', { className: 'rw-hn-meta' }, [j.role || 'Role not stated', j.location || 'Location not stated', remoteText(j)].join(' · ')));
+    if (j.stack.length) {
+      var chips = el('ul', { className: 'rw-hn-chips', 'aria-label': 'Technologies' });
+      j.stack.forEach(function (s) { chips.appendChild(el('li', {}, el('span', { className: 'rw-hn-tag' }, s))); });
+      li.appendChild(chips);
+    } else {
+      li.appendChild(el('p', { className: 'rw-hn-meta' }, 'No technologies recognised in this post.'));
+    }
+    if (j.flat) li.appendChild(el('p', { className: 'rw-hn-snippet' }, j.flat.length > SNIPPET ? j.flat.slice(0, SNIPPET).replace(/\s+\S*$/, '') + '…' : j.flat));
+    var acts = el('div', { className: 'rw-hn-actions' });
+    var more = el('button', { type: 'button', className: 'rw-hn-linkbtn', 'data-id': String(j.id) }, j.flat.length > SNIPPET ? 'Read the full post' : 'Details');
+    more.setAttribute('aria-label', (j.flat.length > SNIPPET ? 'Read the full post from ' : 'Details for ') + (j.company || 'this company'));
+    acts.appendChild(more);
+    acts.appendChild(H.extLink(H.hnItemUrl(j.id), 'HN comment', 'HN comment from ' + (j.company || 'this company')));
+    if (j.url) acts.appendChild(H.extLink(j.url.href, 'Job link (' + j.url.host + ')', 'Job link from ' + (j.company || 'this company')));
+    li.appendChild(acts);
     return li;
   }
 
-  function render() {
-    var q = clean($('hn-q').value).toLowerCase(), remote = $('hn-remote').value;
-    var shown = jobs.filter(function (j) { return matches(j, q, remote); });
-    var list = $('hn-list'); list.textContent = '';
-    shown.forEach(function (j) { list.appendChild(card(j)); });
-    $('hn-count').textContent = shown.length + ' of ' + jobs.length;
-    showState(jobs.length === 0 ? 'No jobs in the data yet.' : shown.length === 0 ? 'No jobs match these filters.' : '');
+  // ---- insights over the current results ----
+  function insights(list, total) {
+    var box = $('hn-insight'); box.textContent = '';
+    var c = { yes: 0, no: 0, unknown: 0 }, stacks = {}, noStack = 0;
+    list.forEach(function (j) {
+      c[rk(j)]++;
+      if (!j.stack.length) noStack++;
+      j.stack.forEach(function (s) { stacks[s] = (stacks[s] || 0) + 1; });
+    });
+    var n = list.length;
+    var left = el('div', {}, [el('h3', {}, 'Remote, in these results')]);
+    var split = el('div', { className: 'rw-hn-split', role: 'img', 'aria-label': c.yes + ' remote, ' + c.no + ' not remote, ' + c.unknown + ' not stated, out of ' + n });
+    [['yes', 'rw-hn-seg-yes'], ['no', 'rw-hn-seg-no'], ['unknown', 'rw-hn-seg-unk']].forEach(function (p) {
+      var s = el('span', { className: p[1] }); s.style.width = (n ? c[p[0]] / n * 100 : 0) + '%'; split.appendChild(s);
+    });
+    left.appendChild(split);
+    var leg = el('ul', { className: 'rw-hn-legend' });
+    [['yes', 'rw-hn-seg-yes', 'Remote'], ['no', 'rw-hn-seg-no', 'Not remote'], ['unknown', 'rw-hn-seg-unk', 'Not stated']].forEach(function (p) {
+      leg.appendChild(el('li', {}, [el('span', { className: 'rw-hn-swatch ' + p[1] }), p[2] + ' ' + c[p[0]] + (n ? ' (' + Math.round(c[p[0]] / n * 100) + '%)' : '')]));
+    });
+    left.appendChild(leg);
+    box.appendChild(left);
+
+    var top = Object.keys(stacks).sort(function (a, b) { return stacks[b] - stacks[a] || a.localeCompare(b); }).slice(0, 5);
+    var right = el('div', {}, [el('h3', {}, 'Most listed technologies')]);
+    if (top.length) {
+      right.appendChild(el('p', { className: 'rw-hn-small' }, top.map(function (s) { return s + ' ' + stacks[s]; }).join(' · ')));
+    }
+    right.appendChild(el('p', { className: 'rw-hn-small rw-hn-muted' }, noStack + ' of ' + n + ' posts list no recognised technology (names are matched from a fixed list, so this undercounts).'));
+    box.appendChild(right);
   }
 
-  $('hn-q').addEventListener('input', render);
-  $('hn-remote').addEventListener('change', render);
+  // ---- stack chips (counts follow the other filters) ----
+  function renderChips(f) {
+    var base = jobs.filter(function (j) { return passes(j, f, true); }), counts = {}, names = {};
+    base.forEach(function (j) { j.stack.forEach(function (s) { var k = key(s); counts[k] = (counts[k] || 0) + 1; names[k] = names[k] || s; }); });
+    Object.keys(sel).forEach(function (k) { names[k] = names[k] || sel[k]; counts[k] = counts[k] || 0; });
+    var ks = Object.keys(counts).sort(function (a, b) { return (sel[b] ? 1 : 0) - (sel[a] ? 1 : 0) || counts[b] - counts[a] || a.localeCompare(b); });
+    var shown = showAllStack ? ks : ks.slice(0, TOP_STACK);
+    var ul = $('hn-stack'); ul.textContent = '';
+    shown.forEach(function (k) {
+      var b = el('button', { type: 'button', className: 'rw-hn-chip', 'aria-pressed': sel[k] ? 'true' : 'false', 'data-k': k }, [names[k], el('small', {}, String(counts[k]))]);
+      ul.appendChild(el('li', {}, b));
+    });
+    var more = $('hn-stack-more');
+    more.hidden = ks.length <= TOP_STACK;
+    more.textContent = showAllStack ? 'Show fewer technologies' : 'Show all ' + ks.length + ' technologies';
+    more.setAttribute('aria-expanded', showAllStack ? 'true' : 'false');
+  }
 
-  fetch('./data/jobs.json', { cache: 'no-cache' })
-    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-    .then(function (data) {
-      if (!Array.isArray(data)) throw new Error('not a list');
-      jobs = data.filter(function (j) { return j && typeof j === 'object' && Number.isFinite(parseInt(j.comment_id, 10)); });
-      render();
-    })
-    .catch(function () { showState('Could not load the jobs data. Try again later.'); });
+  function render() {
+    var f = filters();
+    renderChips(f);
+    var list = sorted(jobs.filter(function (j) { return passes(j, f, false); }));
+    var ul = $('hn-list'); ul.textContent = '';
+    list.slice(0, limit).forEach(function (j) { ul.appendChild(card(j)); });
+    var shownN = Math.min(limit, list.length), filtered = active(f);
+    $('hn-count').textContent = shownN < list.length
+      ? 'Showing ' + shownN + ' of ' + list.length + (filtered ? ' matches' : ' posts')
+      : list.length + (filtered ? ' of ' + jobs.length + ' posts match' : ' posts');
+    var more = $('hn-more'); more.hidden = list.length <= limit;
+    more.textContent = 'Show ' + Math.min(PAGE, list.length - limit) + ' more';
+    $('hn-clear').hidden = !active(f);
+    insights(list, jobs.length);
+    var st = $('hn-state');
+    if (!list.length) {
+      H.state(st, 'No posts match these filters', 'Try fewer technologies, or remove the search words. Posts that do not state remote are only found with "Not stated".', { label: 'Clear filters', run: clearAll });
+      $('hn-insight').hidden = true; ul.hidden = true;
+    } else { st.hidden = true; $('hn-insight').hidden = false; ul.hidden = false; }
+  }
+  function reset() { limit = PAGE; render(); }
+  function clearAll() {
+    $('hn-q').value = ''; $('r-all').checked = true; $('hn-link').checked = false; $('hn-sort').value = 'thread'; sel = {}; reset();
+  }
+
+  // ---- detail dialog ----
+  function open(id, opener) {
+    var j = jobs.filter(function (x) { return x.id === id; })[0];
+    if (!j) return;
+    lastOpener = opener || null;
+    $('hn-dlg-title').textContent = j.company || 'Company not stated';
+    $('hn-dlg-meta').textContent = [j.role || 'Role not stated', j.location || 'Location not stated'].join(' · ');
+    var body = $('hn-dlg-body'); body.textContent = '';
+
+    var dl = el('dl');
+    function row(k, v) { dl.appendChild(el('dt', {}, k)); dl.appendChild(el('dd', {}, v)); }
+    row('Remote', j.remote === null ? 'Not stated in the post' : j.remote ? 'Yes (read from the post, not verified)' : 'No (read from the post, not verified)');
+    var tech = el('div');
+    if (j.stack.length) { var u = el('ul', { className: 'rw-hn-chips' }); j.stack.forEach(function (s) { u.appendChild(el('li', {}, el('span', { className: 'rw-hn-tag' }, s))); }); tech = u; }
+    else tech = el('span', { className: 'rw-hn-muted' }, 'None recognised. The post may still mention some.');
+    row('Technologies', tech);
+    row('Job link', j.url ? H.extLink(j.url.href, j.url.host, 'Job link ' + j.url.host) : el('span', { className: 'rw-hn-muted' }, 'No link in the post'));
+    row('Original', H.extLink(H.hnItemUrl(j.id), 'HN comment ' + j.id, 'HN comment ' + j.id));
+    body.appendChild(dl);
+
+    body.appendChild(el('h3', {}, 'What the post says'));
+    body.appendChild(j.text ? el('p', { className: 'rw-hn-post' }, j.text) : el('p', { className: 'rw-hn-muted' }, 'The post has no text.'));
+    body.appendChild(el('p', { className: 'rw-hn-note' }, 'Fields above are read from the post by a parser and can be wrong. The post and the HN comment are the source of truth.'));
+
+    var d = $('hn-dialog');
+    if (!d.open) d.showModal();
+    try { history.replaceState(null, '', '#c' + j.id); } catch (e) {}
+    body.scrollTop = 0;
+  }
+  function closeDlg() { var d = $('hn-dialog'); if (d.open) d.close(); }
+  $('hn-dialog').addEventListener('close', function () {
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+    if (lastOpener && document.body.contains(lastOpener)) lastOpener.focus();
+  });
+  $('hn-dlg-close').addEventListener('click', closeDlg);
+  $('hn-dialog').addEventListener('click', function (e) { if (e.target === this) closeDlg(); });   // click on the backdrop
+
+  // ---- events ----
+  var timer;
+  $('hn-q').addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(reset, 120); });
+  document.querySelectorAll('input[name="remote"]').forEach(function (r) { r.addEventListener('change', reset); });
+  $('hn-link').addEventListener('change', reset);
+  $('hn-sort').addEventListener('change', reset);
+  $('hn-clear').addEventListener('click', clearAll);
+  $('hn-more').addEventListener('click', function () { limit += PAGE; render(); });
+  $('hn-stack-more').addEventListener('click', function () { showAllStack = !showAllStack; render(); });
+  $('hn-stack').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-k]'); if (!b) return;
+    var k = b.getAttribute('data-k');
+    if (sel[k]) delete sel[k]; else sel[k] = b.firstChild.textContent;
+    limit = PAGE; render();
+    var again = $('hn-stack').querySelector('button[data-k="' + k.replace(/["\\]/g, '\\$&') + '"]'); if (again) again.focus();
+  });
+  $('hn-list').addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-id]'); if (b) open(parseInt(b.getAttribute('data-id'), 10), b);
+  });
+
+  // Links from other pages: ?stack=Python&remote=yes&link=1&q=text&noRole=... (only known values are used)
+  function fromQuery() {
+    var q = new URLSearchParams(location.search);
+    var r = q.get('remote'); if (['yes', 'no', 'unknown'].indexOf(r) !== -1) $('r-' + (r === 'unknown' ? 'unk' : r)).checked = true;
+    if (q.get('link') === '1') $('hn-link').checked = true;
+    if (q.get('q')) $('hn-q').value = clean(q.get('q')).slice(0, 80);
+    q.getAll('stack').forEach(function (s) {
+      var k = key(clean(s)), hit = jobs.some(function (j) { return j.stack.map(key).indexOf(k) !== -1; });
+      if (hit) sel[k] = clean(s);
+    });
+  }
+
+  function load() {
+    var st = $('hn-state'); H.state(st, 'Loading jobs', 'Reading the data file.');
+    $('hn-results').hidden = true;
+    H.loadJSON('./data/jobs.json', H.jobsList)
+      .then(function (data) {
+        jobs = H.jobsList(data).map(prep);
+        if (!jobs.length) { $('hn-results').hidden = true; H.state(st, 'No jobs in the data yet', 'The jobs file is there but has no posts. It is filled when the monthly thread is fetched.'); return; }
+        $('hn-results').hidden = false; st.hidden = true;
+        fromQuery();
+        render();
+        var m = /^#c(\d+)$/.exec(location.hash); if (m) open(parseInt(m[1], 10), null);
+      })
+      .catch(function () {
+        H.state(st, 'The jobs data could not be loaded', 'The file data/jobs.json is missing or is not a list of posts. Nothing is wrong with your connection if this keeps happening; the data may not have been published yet.', { label: 'Try again', run: load });
+      });
+  }
+  load();
 })();
 </script>
 </body>

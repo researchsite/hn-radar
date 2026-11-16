@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HN Radar Insights: stacks and remote | RawWeights</title>
+  <meta name="description" content="Top technologies, remote share and how complete the posts are in the Hacker News Who is hiring thread. Counts from public data, with the limits stated.">
+  <meta name="author" content="RawWeights">
+  <link rel="canonical" href="https://rawweights.com/careers/insights.html">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://rawweights.com/careers/insights.html">
+  <meta property="og:title" content="HN Radar Insights: stacks and remote | RawWeights">
+  <meta property="og:description" content="Top technologies, remote share and how complete the posts are in the Who is hiring thread.">
+
+  <script>(function(){var t=localStorage.getItem('rw-theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
+
+  <link rel="stylesheet" href="../includes/brand.css">
+  <link rel="stylesheet" href="./hn.css">
+  <script type="text/javascript" async src="../includes/analytics.js"></script>
+</head>
+<body>
+
+<div id="rw-nav"></div>
+<script src="../includes/rw-nav.js?v=20261106"></script>
+
+<div id="content" class="rw-hn-wrap">
+  <div id="hn-pages"></div>
+  <h1>What the thread asks for</h1>
+  <p class="rw-hn-lead">Counts over the posts in the jobs file. They are only as good as the parser: technologies are matched from a fixed list, and a missing field means the post did not say, not that the answer is no.</p>
+
+  <div id="hn-state" class="rw-hn-state" role="status" hidden></div>
+  <div id="hn-out" hidden></div>
+</div>
+
+<div id="rw-footer" data-linkedin="" data-related='[]'></div>
+<script src="../includes/rw-footer.js?v=20261107"></script>
+
+<script src="./hn.js"></script>
+<script>
+(function () {
+  'use strict';
+  var H = window.HN, el = H.el, clean = H.clean;
+  var $ = function (id) { return document.getElementById(id); };
+  document.getElementById('hn-pages').appendChild(H.pages('insights.html'));
+
+  function pct(n, total) { return total ? Math.round(n / total * 100) + '%' : '0%'; }
+
+  // One bar row. href (optional) opens the job explorer with the matching filter.
+  function barRow(label, n, max, total, href, warn) {
+    var name = href ? el('a', { className: 'rw-hn-link rw-hn-barlabel', href: href, 'aria-label': label + ': ' + n + ' posts, show them' }, label) : el('span', { className: 'rw-hn-barlabel' }, label);
+    var fill = el('span', { className: 'rw-hn-fill' + (warn ? ' rw-hn-fill--warn' : '') }); fill.style.width = (max ? n / max * 100 : 0) + '%';
+    return el('li', { className: 'rw-hn-barrow' }, [name, el('span', { className: 'rw-hn-track', 'aria-hidden': 'true' }, fill), el('span', { className: 'rw-hn-barval' }, [String(n) + ' ', el('small', {}, '(' + pct(n, total) + ')')])]);
+  }
+
+  // The same numbers as a table, for people who prefer or need one
+  function table(head, rows) {
+    var t = el('table', { className: 'rw-hn-table' });
+    var tr = el('tr'); head.forEach(function (h) { tr.appendChild(el('th', { scope: 'col' }, h)); });
+    t.appendChild(el('thead', {}, tr));
+    var tb = el('tbody'); rows.forEach(function (r) { var x = el('tr'); r.forEach(function (c) { x.appendChild(el('td', {}, String(c))); }); tb.appendChild(x); });
+    t.appendChild(tb); return t;
+  }
+
+  function section(title, intro, extra) {
+    var s = el('section', { className: 'rw-hn-section rw-hn-panel' });
+    s.appendChild(el('h2', {}, title));
+    if (intro) s.appendChild(el('p', { className: 'rw-hn-muted rw-hn-small' }, intro));
+    return s;
+  }
+
+  function build(jobs) {
+    var n = jobs.length, out = $('hn-out'); out.textContent = '';
+    var c = { yes: 0, no: 0, unknown: 0 }, stacks = {}, noRole = 0, noLoc = 0, noLink = 0, noStack = 0;
+    jobs.forEach(function (j) {
+      c[H.remoteKey(j)]++;
+      if (!clean(j.role)) noRole++;
+      if (!clean(j.location)) noLoc++;
+      if (!H.safeUrl(j.url)) noLink++;
+      var seen = {}, list = (Array.isArray(j.stack) ? j.stack : []).map(clean).filter(Boolean);
+      if (!list.length) noStack++;
+      list.forEach(function (s) { if (!seen[s.toLowerCase()]) { seen[s.toLowerCase()] = 1; stacks[s] = (stacks[s] || 0) + 1; } });
+    });
+    var top = Object.keys(stacks).sort(function (a, b) { return stacks[b] - stacks[a] || a.localeCompare(b); });
+
+    // stat tiles
+    var tiles = el('ul', { className: 'rw-hn-stats' });
+    [[n, 'posts parsed'], [pct(c.yes, n), 'say remote (' + c.yes + ')'], [pct(n - noStack, n), 'name a technology we recognise'], [pct(n - noLink, n), 'include a job link']].forEach(function (t) {
+      tiles.appendChild(el('li', { className: 'rw-hn-stat' }, [el('b', {}, String(t[0])), el('span', {}, t[1])]));
+    });
+    out.appendChild(tiles);
+
+    // top technologies
+    var s1 = section('Top technologies', 'Posts that name each technology, out of ' + n + '. A post counts once per technology. Select a name to see those posts.');
+    var N = 15, shown = top.slice(0, N), max = shown.length ? stacks[shown[0]] : 0;
+    var bars = el('ol', { className: 'rw-hn-bars', 'aria-label': 'Top technologies by number of posts' });
+    shown.forEach(function (s) { bars.appendChild(barRow(s, stacks[s], max, n, './index.html?stack=' + encodeURIComponent(s))); });
+    s1.appendChild(bars);
+    if (top.length > N) s1.appendChild(el('p', { className: 'rw-hn-muted rw-hn-small', style: 'margin-top:10px' }, 'Showing the top ' + N + ' of ' + top.length + ' technologies found.'));
+    var d1 = el('details', { style: 'margin-top:8px' }, [el('summary', {}, 'Show all ' + top.length + ' as a table'), table(['Technology', 'Posts', 'Share'], top.map(function (s) { return [s, stacks[s], pct(stacks[s], n)]; }))]);
+    if (top.length) s1.appendChild(d1);
+    else s1.appendChild(el('p', { className: 'rw-hn-muted' }, 'No technologies were recognised in these posts.'));
+    out.appendChild(s1);
+
+    // remote share
+    var s2 = section('Remote or not', 'What the post itself says. "Not stated" is common: the parser only marks remote or not remote when the post says so.');
+    var split = el('div', { className: 'rw-hn-split', style: 'height:20px', role: 'img', 'aria-label': c.yes + ' remote, ' + c.no + ' not remote, ' + c.unknown + ' not stated, out of ' + n });
+    [['yes', 'rw-hn-seg-yes'], ['no', 'rw-hn-seg-no'], ['unknown', 'rw-hn-seg-unk']].forEach(function (p) { var sp = el('span', { className: p[1] }); sp.style.width = (n ? c[p[0]] / n * 100 : 0) + '%'; split.appendChild(sp); });
+    s2.appendChild(split);
+    var leg = el('ul', { className: 'rw-hn-legend' });
+    [['yes', 'rw-hn-seg-yes', 'Remote', 'yes'], ['no', 'rw-hn-seg-no', 'Not remote', 'no'], ['unknown', 'rw-hn-seg-unk', 'Not stated', 'unknown']].forEach(function (p) {
+      var a = el('a', { className: 'rw-hn-link', href: './index.html?remote=' + p[3] }, p[2] + ' ' + c[p[0]] + ' (' + pct(c[p[0]], n) + ')');
+      leg.appendChild(el('li', {}, [el('span', { className: 'rw-hn-swatch ' + p[1] }), a]));
+    });
+    s2.appendChild(leg);
+    out.appendChild(s2);
+
+    // completeness
+    var s3 = section('What posts leave out', 'Fields the parser could not find. Useful to know before trusting a filter: a filter on a missing field hides those posts.');
+    var gaps = [['No role', noRole], ['No location', noLoc], ['No job link', noLink], ['No recognised technology', noStack], ['Remote not stated', c.unknown]];
+    var gm = Math.max.apply(null, gaps.map(function (g) { return g[1]; }));
+    var gb = el('ul', { className: 'rw-hn-bars', 'aria-label': 'Posts missing each field' });
+    gaps.forEach(function (g) { gb.appendChild(barRow(g[0], g[1], gm, n, null, true)); });
+    s3.appendChild(gb);
+    out.appendChild(s3);
+
+    out.appendChild(el('p', { className: 'rw-hn-muted rw-hn-small' }, 'No dates, salaries or seniority are in the data yet, so there are no charts for them. Every number here comes from the same file the job explorer reads.'));
+    out.hidden = false;
+  }
+
+  function load() {
+    var st = $('hn-state'); H.state(st, 'Loading', 'Reading the data file.'); $('hn-out').hidden = true;
+    H.loadJSON('./data/jobs.json', H.jobsList).then(function (data) {
+      var jobs = H.jobsList(data);
+      if (!jobs.length) { H.state(st, 'No jobs in the data yet', 'There is nothing to count. This page fills in when the monthly thread has been fetched.'); return; }
+      st.hidden = true; build(jobs);
+    }).catch(function () {
+      H.state(st, 'The jobs data could not be loaded', 'The file data/jobs.json is missing or is not a list of posts.', { label: 'Try again', run: load });
+    });
+  }
+  load();
+})();
+</script>
+</body>
+</html>
