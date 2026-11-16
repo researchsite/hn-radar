@@ -4,6 +4,11 @@
 (function () {
   'use strict';
 
+  // WHERE FILES LIVE. The only place a page learns the location of data, pictures and videos.
+  // Here (dev) they sit inside careers/. On the live site they are shared at the site root; the move script
+  // (site/_private/publish-to-site.ps1) rewrites this one line in the copy, or change it by hand: see site/README.md.
+  var PATHS = { data: './data/', images: './images/', videos: './videos/' };
+
   // Control characters, DEL and C1, zero-width and bidirectional/format characters.
   var BAD = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f​-‏‪-‮⁠-⁯﻿]/g;
 
@@ -101,6 +106,6 @@
     return ul;
   }
 
-  window.HN = { clean: clean, cleanBlock: cleanBlock, hnItemUrl: hnItemUrl, safeUrl: safeUrl, el: el, extLink: extLink,
+  window.HN = { paths: PATHS, clean: clean, cleanBlock: cleanBlock, hnItemUrl: hnItemUrl, safeUrl: safeUrl, el: el, extLink: extLink,
     citations: citations, state: state, loadJSON: loadJSON, jobsList: jobsList, remoteKey: remoteKey, remoteLabel: remoteLabel, pages: pages };
 })();

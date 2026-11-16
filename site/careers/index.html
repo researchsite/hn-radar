@@ -320,7 +320,7 @@
   function load() {
     var st = $('hn-state'); H.state(st, 'Loading jobs', 'Reading the data file.');
     $('hn-results').hidden = true;
-    H.loadJSON('./data/jobs.json', H.jobsList)
+    H.loadJSON(H.paths.data + 'jobs.json', H.jobsList)
       .then(function (data) {
         jobs = H.jobsList(data).map(prep);
         if (!jobs.length) { $('hn-results').hidden = true; H.state(st, 'No jobs in the data yet', 'The jobs file is there but has no posts. It is filled when the monthly thread is fetched.'); return; }

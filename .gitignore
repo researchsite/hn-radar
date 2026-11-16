@@ -30,3 +30,7 @@ logs/
 site/includes/
 site/fonts/
 site/careers/data/
+site/favicon.svg
+site/site.webmanifest
+site/images/favicon-*.png
+site/images/apple-touch-icon.png
