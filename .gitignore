@@ -25,3 +25,8 @@ data/profiles/
 
 # Agent run logs
 logs/
+
+# Site dev copies (synced from the live site project; see site/README.md)
+site/includes/
+site/fonts/
+site/careers/data/

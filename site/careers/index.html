@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HN Radar | RawWeights</title>
+  <meta name="description" content="Jobs from the Hacker News Who is hiring thread, parsed and searchable. Public data only.">
+  <meta name="author" content="RawWeights">
+  <link rel="canonical" href="https://rawweights.com/careers/">
+
+  <!-- Theme: must be first, prevents a dark/light flash. Same script as the other pages. -->
+  <script>(function(){var t=localStorage.getItem('rw-theme')||(window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');document.documentElement.setAttribute('data-theme',t);})();</script>
+
+  <!-- Same relative paths as the live site: this folder is copied to the site root as /careers/ -->
+  <link rel="stylesheet" href="../includes/brand.css">
+  <script type="text/javascript" async src="../includes/analytics.js"></script>
+
+  <style>
+    /* Page-specific styles use the rw-hn- prefix and brand tokens only (--rw-*). *
+    .rw-hn-wrap { max-width: 960px; margin: 0 auto; padding: 32px 16px 48px;  /* body already clears the fixed nav */ }
+    .rw-hn-wrap h1 { font-family: var(--rw-font-display); font-size: 32px; margin: 0 0 8px; color: var(--rw-text); }
+    .rw-hn-lead { color: var(--rw-text-muted); margin: 0 0 24px; }
+    .rw-hn-controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 16px; }
+    .rw-hn-controls input, .rw-hn-controls select {
+      padding: 10px 12px; border: 1px solid var(--rw-border); border-radius: 8px;
+      background: var(--rw-card); color: var(--rw-text); font: inherit;
+    }
+    .rw-hn-controls input { flex: 1 1 240px; }
+    .rw-hn-count { color: var(--rw-text-muted); font-size: 14px; }
+    .rw-hn-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+    .rw-hn-item { background: var(--rw-card); border: 1px solid var(--rw-border); border-radius: var(--rw-r-md); padding: 16px; }
+    .rw-hn-item h2 { font-family: var(--rw-font-display); font-size: 18px; margin: 0 0 4px; color: var(--rw-text); }
+    .rw-hn-meta { color: var(--rw-text-muted); font-size: 14px; margin: 0 0 8px; }
+    .rw-hn-chip { display: inline-block; font-size: 12px; padding: 2px 8px; margin: 0 4px 4px 0; border-radius: 999px;
+      background: var(--rw-orange-light); color: var(--rw-text); }
+    .rw-hn-item a { color: var(--rw-link); }
+    .rw-hn-state { padding: 24px; border: 1px dashed var(--rw-border); border-radius: var(--rw-r-md); color: var(--rw-text-muted); }
+  </style>
+</head>
+<body>
+
+<div id="rw-nav"></div>
+<script src="../includes/rw-nav.js?v=20261106"></script>
+
+<div id="content" class="rw-hn-wrap">  <!-- a div, not <main>: the page owns this area; nav and footer are the site's -->
+  <h1>HN Radar</h1>
+  <p class="rw-hn-lead">Jobs from the Hacker News "Who is hiring?" thread, parsed into fields. Public data only; each row links to its HN comment.</p>
+
+  <div class="rw-hn-controls">
+    <input id="hn-q" type="search" placeholder="Search company, role or stack" aria-label="Search company, role or stack">
+    <select id="hn-remote" aria-label="Remote filter">
+      <option value="all">Remote: any</option>
+      <option value="yes">Remote: yes</option>
+      <option value="no">Remote: no</option>
+      <option value="unknown">Remote: not stated</option>
+    </select>
+    <span id="hn-count" class="rw-hn-count" aria-live="polite"></span>
+  </div>
+
+  <ul id="hn-list" class="rw-hn-list"></ul>
+  <div id="hn-state" class="rw-hn-state" hidden></div>
+</div>
+
+<div id="rw-footer" data-linkedin="" data-related='[]'></div>
+<script src="../includes/rw-footer.js?v=20261107"></script>
+
+<script>
+(function () {
+  'use strict';
+  var MAX_TEXT = 400;       // long posts are cut, with a link to the full comment
+  var jobs = [];
+  var $ = function (id) { return document.getElementById(id); };
+
+  // Post text is attacker-controlled: it is only ever written with textContent, and control and
+  // bidirectional/format characters are removed first (same idea as AGENTS.md rule 8 for the terminal).
+  function clean(text) {
+    return String(text == null ? '' : text)
+      .replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩﻿]/g, ' ')
+      .replace(/\s+/g, ' ').trim();
+  }
+
+  function showState(msg) { var s = $('hn-state'); s.textContent = msg; s.hidden = !msg; }
+
+  function remoteKey(j) { return j.remote === true ? 'yes' : j.remote === false ? 'no' : 'unknown'; }
+
+  function matches(j, q, remote) {
+    if (remote !== 'all' && remoteKey(j) !== remote) return false;
+    if (!q) return true;
+    var hay = [j.company, j.role, (j.stack || []).join(' ')].map(clean).join(' ').toLowerCase();
+    return hay.indexOf(q) !== -1;
+  }
+
+  function card(j) {
+    var li = document.createElement('li'); li.className = 'rw-hn-item';
+    var h = document.createElement('h2'); h.textContent = clean(j.company) || '(no company)'; li.appendChild(h);
+    var meta = document.createElement('p'); meta.className = 'rw-hn-meta';
+    meta.textContent = [clean(j.role) || 'role not stated', clean(j.location), j.remote === true ? 'remote' : j.remote === false ? 'not remote' : 'remote not stated'].filter(Boolean).join(' | ');
+    li.appendChild(meta);
+    (j.stack || []).forEach(function (s) { var c = document.createElement('span'); c.className = 'rw-hn-chip'; c.textContent = clean(s); li.appendChild(c); });
+    var text = clean(j.raw_text);
+    if (text) { var p = document.createElement('p'); p.textContent = text.length > MAX_TEXT ? text.slice(0, MAX_TEXT) + '...' : text; li.appendChild(p); }
+    var a = document.createElement('a');
+    a.href = 'https://news.ycombinator.com/item?id=' + encodeURIComponent(String(parseInt(j.comment_id, 10)));
+    a.textContent = 'Read the comment on HN'; a.rel = 'noopener noreferrer'; li.appendChild(a);
+    return li;
+  }
+
+  function render() {
+    var q = clean($('hn-q').value).toLowerCase(), remote = $('hn-remote').value;
+    var shown = jobs.filter(function (j) { return matches(j, q, remote); });
+    var list = $('hn-list'); list.textContent = '';
+    shown.forEach(function (j) { list.appendChild(card(j)); });
+    $('hn-count').textContent = shown.length + ' of ' + jobs.length;
+    showState(jobs.length === 0 ? 'No jobs in the data yet.' : shown.length === 0 ? 'No jobs match these filters.' : '');
+  }
+
+  $('hn-q').addEventListener('input', render);
+  $('hn-remote').addEventListener('change', render);
+
+  fetch('./data/jobs.json', { cache: 'no-cache' })
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function (data) {
+      if (!Array.isArray(data)) throw new Error('not a list');
+      jobs = data.filter(function (j) { return j && typeof j === 'object' && Number.isFinite(parseInt(j.comment_id, 10)); });
+      render();
+    })
+    .catch(function () { showState('Could not load the jobs data. Try again later.'); });
+})();
+</script>
+</body>
+</html>
