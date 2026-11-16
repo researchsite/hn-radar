@@ -7,6 +7,7 @@ from typing import Annotated
 import httpx
 import typer
 
+from hnradar.closed import closing_reply_id
 from hnradar.fingerprint import build_profile
 from hnradar.match import top_matches
 from hnradar.models import Job, MatchResult, Profile
@@ -41,7 +42,13 @@ def fetch_hiring(
 
     if limit is not None:
         comments = comments[:limit]
-    jobs = [parse_comment(int(c["id"]), c["text"]) for c in comments]
+    jobs = []
+    for c in comments:
+        job = parse_comment(int(c["id"]), c["text"])
+        closed_id = closing_reply_id(c)
+        if closed_id is not None:
+            job.closed, job.closed_comment_id = True, closed_id
+        jobs.append(job)
 
     records = [j.model_dump() for j in jobs]
     target = out if out is not None else (None if json_output else Path("data/jobs.json"))
