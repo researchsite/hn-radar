@@ -1,5 +1,6 @@
 import json
 import unicodedata
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Annotated
 
@@ -7,6 +8,8 @@ import httpx
 import typer
 
 from hnradar.fingerprint import build_profile
+from hnradar.match import top_matches
+from hnradar.models import Job, MatchResult, Profile
 from hnradar.parse import parse_comment
 from hnradar.showhn import build_result, normalize_domain
 from hnradar.sources import github, hn
@@ -131,3 +134,77 @@ def fingerprint(
         typer.echo(f"{username} has no public repos; wrote an empty profile to {out}")
     else:
         typer.echo(f"Wrote profile for {username} ({len(profile.languages)} languages) to {out}")
+
+
+def _read_json_file(path: Path, what: str, hint: str):
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        typer.echo(f"Error: {what} not found at {path}. {hint}", err=True)
+        raise typer.Exit(1) from exc
+    except (OSError, ValueError) as exc:  # unreadable or not JSON
+        typer.echo(f"Error: could not read {what} at {path}: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+
+def _profile_path(profiles_dir: Path, username: str) -> Path:
+    """`fingerprint Octo` writes Octo.json; GitHub logins are case-insensitive, so `match octo` finds it too."""
+    exact = profiles_dir / f"{username}.json"
+    if exact.exists() or not profiles_dir.is_dir():
+        return exact
+    wanted = f"{username}.json".lower()
+    try:
+        return next((p for p in sorted(profiles_dir.iterdir()) if p.name.lower() == wanted), exact)
+    except OSError:  # unreadable or vanished directory: let the normal read report the real error
+        return exact
+
+
+@app.command("match")
+def match(
+    username: Annotated[str, typer.Argument(help="GitHub username with a profile from `hnradar fingerprint`.")],
+    jobs_file: Annotated[Path, typer.Option("--jobs", help="Jobs file from `hnradar fetch-hiring`.")] = Path("data/jobs.json"),
+    profiles_dir: Annotated[Path, typer.Option(help="Directory holding <user>.json.")] = Path("data/profiles"),
+    as_json: Annotated[bool, typer.Option("--json", help="Print the result as JSON instead of a table.")] = False,
+) -> None:
+    """Show the top 3 jobs for a user, scored deterministically from their profile."""
+    if not github.USERNAME_RE.fullmatch(username):  # also keeps the path inside the profiles dir
+        typer.echo(f"Error: {username!r} is not a valid GitHub username", err=True)
+        raise typer.Exit(1)
+
+    profile_path = _profile_path(profiles_dir, username)
+    raw_profile = _read_json_file(profile_path, "profile", f"Run `hnradar fingerprint {username}` first.")
+    raw_jobs = _read_json_file(jobs_file, "jobs file", "Run `hnradar fetch-hiring` first.")
+    try:
+        profile = Profile.model_validate(raw_profile)
+        if not isinstance(raw_jobs, list):
+            raise ValueError("expected a list of jobs")
+        jobs = [Job.model_validate(item) for item in raw_jobs]
+    except ValueError as exc:  # pydantic's ValidationError is a ValueError
+        typer.echo(f"Error: {profile_path} or {jobs_file} has an unexpected shape: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    if profile.username.lower() != username.lower():  # a copied or renamed profile would be shown under the wrong name
+        typer.echo(f"Error: {profile_path} is the profile of {profile.username!r}, not {username!r}", err=True)
+        raise typer.Exit(1)
+
+    matches = top_matches(profile, jobs)
+    result = MatchResult(
+        username=profile.username,
+        generated_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        status="ok" if matches else "no_strong_matches",
+        matches=matches,
+    )
+    if as_json:
+        typer.echo(json.dumps(result.model_dump(), indent=2, ensure_ascii=True))
+        return
+    if not matches:
+        typer.echo(f"No strong matches for {_terminal_safe(profile.username)} in {len(jobs)} jobs.")
+        return
+    typer.echo(f"Top {len(matches)} of {len(jobs)} jobs for {_terminal_safe(profile.username)}:")
+    for m in matches:
+        j = m.job
+        typer.echo(f"{m.rank}. {_terminal_safe(j.company)} | {_terminal_safe(j.role) or '-'} | {_remote_label(j.remote)} | score {m.score}")
+        for reason in m.reasons:
+            typer.echo(f"   - {_terminal_safe(reason.text)}")
+        if j.url:
+            typer.echo(f"   {_terminal_safe(j.url)}")

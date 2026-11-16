@@ -355,3 +355,173 @@ def test_showhn_wrong_shaped_response_exits_1_with_a_message(respx_mock, tmp_pat
     assert result.exit_code == 1
     assert "Error:" in result.output
     assert result.exception is None or isinstance(result.exception, SystemExit)
+
+
+def _match_files(tmp_path, jobs, profile):
+    jobs_file = tmp_path / "jobs.json"
+    jobs_file.write_text(json.dumps(jobs), encoding="utf-8")
+    profiles = tmp_path / "profiles"
+    profiles.mkdir()
+    if profile is not None:
+        (profiles / "octo.json").write_text(json.dumps(profile), encoding="utf-8")
+    return ["match", "octo", "--jobs", str(jobs_file), "--profiles-dir", str(profiles)]
+
+
+MATCH_PROFILE = {
+    "username": "octo",
+    "languages": [{"name": "Python", "size_kb": 10}],
+    "topics": [],
+    "notable_repos": [{"name": "radar", "stars": 1, "language": "Python"}],
+}
+
+
+def _job(comment_id, stack, **extra):
+    return {"comment_id": comment_id, "company": f"Co{comment_id}", "stack": stack, "raw_text": "x", **extra}
+
+
+def test_match_prints_top_matches_with_reasons(tmp_path):
+    args = _match_files(tmp_path, [_job(1, ["Python"], remote=True, role="Dev"), _job(2, ["Go"])], MATCH_PROFILE)
+
+    result = runner.invoke(app, args)
+
+    assert result.exit_code == 0, result.output
+    assert "Top 1 of 2 jobs for octo" in result.output
+    assert "1. Co1 | Dev | yes | score 25" in result.output
+    assert "Your Python work matches this job's stack" in result.output
+    assert "Your repo radar is written in Python" in result.output
+    assert "Co2" not in result.output
+
+
+def test_match_json_shape(tmp_path):
+    result = runner.invoke(app, _match_files(tmp_path, [_job(1, ["Python"])], MATCH_PROFILE) + ["--json"])
+
+    data = json.loads(result.output)
+    assert (data["username"], data["status"]) == ("octo", "ok")
+    assert data["matches"][0]["rank"] == 1
+    assert data["matches"][0]["job"]["company"] == "Co1"
+    assert data["matches"][0]["reasons"][0] == {
+        "kind": "language", "text": "Your Python work matches this job's stack", "evidence": "Python"
+    }
+
+
+@pytest.mark.parametrize("jobs", [[], [_job(1, ["Go"])]])
+def test_match_with_no_overlap_says_no_strong_matches_and_exits_0(tmp_path, jobs):
+    args = _match_files(tmp_path, jobs, MATCH_PROFILE)
+
+    table = runner.invoke(app, args)
+    as_json = runner.invoke(app, args + ["--json"])
+
+    assert table.exit_code == 0
+    assert "No strong matches" in table.output
+    assert json.loads(as_json.output)["status"] == "no_strong_matches"
+    assert json.loads(as_json.output)["matches"] == []
+
+
+def test_match_profile_with_no_languages_is_no_strong_matches(tmp_path):
+    empty = {"username": "octo"}
+
+    result = runner.invoke(app, _match_files(tmp_path, [_job(1, ["Python"])], empty))
+
+    assert result.exit_code == 0
+    assert "No strong matches" in result.output
+
+
+def test_match_missing_profile_tells_the_user_to_run_fingerprint(tmp_path):
+    result = runner.invoke(app, _match_files(tmp_path, [_job(1, ["Python"])], None))
+
+    assert result.exit_code == 1
+    assert "hnradar fingerprint octo" in result.output
+
+
+def test_match_missing_jobs_file_tells_the_user_to_run_fetch_hiring(tmp_path):
+    args = _match_files(tmp_path, [], MATCH_PROFILE)
+    args[args.index("--jobs") + 1] = str(tmp_path / "nope.json")
+
+    result = runner.invoke(app, args)
+
+    assert result.exit_code == 1
+    assert "hnradar fetch-hiring" in result.output
+
+
+@pytest.mark.parametrize("username", ["../octo", "octo/x", "a b", "", "x" * 40, "octo.json", "foo-", "a--b"])
+def test_match_rejects_usernames_that_are_not_github_logins(tmp_path, username):
+    args = _match_files(tmp_path, [], MATCH_PROFILE)
+    args[1] = username
+
+    result = runner.invoke(app, args)
+
+    assert result.exit_code == 1
+    assert "valid GitHub username" in result.output
+
+
+def test_match_profile_saved_under_another_name_is_an_error(tmp_path):
+    args = _match_files(tmp_path, [_job(1, ["Python"])], dict(MATCH_PROFILE, username="someone-else"))
+
+    result = runner.invoke(app, args)
+
+    assert result.exit_code == 1
+    assert "someone-else" in result.output and "octo" in result.output
+
+
+def test_match_finds_a_profile_saved_with_another_capitalisation(tmp_path):
+    args = _match_files(tmp_path, [_job(1, ["Python"])], None)
+    (tmp_path / "profiles" / "OCTO.json").write_text(json.dumps(MATCH_PROFILE), encoding="utf-8")  # as `fingerprint OCTO` writes it
+
+    result = runner.invoke(app, args)  # `match octo`
+
+    assert result.exit_code == 0, result.output
+    assert "Top 1 of 1 jobs for octo" in result.output
+
+
+def test_match_unreadable_profiles_dir_is_a_clean_error(tmp_path, monkeypatch):
+    args = _match_files(tmp_path, [_job(1, ["Python"])], None)
+
+    def boom(self):
+        raise PermissionError("denied")
+
+    monkeypatch.setattr("pathlib.Path.iterdir", boom)
+    result = runner.invoke(app, args)
+
+    assert result.exit_code == 1
+    assert "Error:" in result.output and "Traceback" not in result.output
+
+
+def test_match_username_case_is_not_significant(tmp_path):
+    args = _match_files(tmp_path, [_job(1, ["Python"])], dict(MATCH_PROFILE, username="Octo"))
+
+    assert runner.invoke(app, args).exit_code == 0  # GitHub logins are case-insensitive
+
+
+@pytest.mark.parametrize("content", ["not json", "{}", '{"username": 5}', "[]"])
+def test_match_malformed_profile_exits_1_with_error(tmp_path, content):
+    args = _match_files(tmp_path, [], MATCH_PROFILE)
+    (tmp_path / "profiles" / "octo.json").write_text(content, encoding="utf-8")
+
+    result = runner.invoke(app, args)
+
+    assert result.exit_code == 1
+    assert "Error:" in result.output
+
+
+@pytest.mark.parametrize("content", ["not json", "{}", '[{"comment_id": "x"}]', '["oops"]'])
+def test_match_malformed_jobs_file_exits_1_with_error(tmp_path, content):
+    args = _match_files(tmp_path, [], MATCH_PROFILE)
+    (tmp_path / "jobs.json").write_text(content, encoding="utf-8")
+
+    result = runner.invoke(app, args)
+
+    assert result.exit_code == 1
+    assert "Error:" in result.output
+
+
+def test_match_hostile_post_text_is_cleaned_in_the_table_and_escaped_in_json(tmp_path):
+    esc = chr(27)
+    hostile = _job(1, ["Python"], company=f"Ev{esc}[2Jil‮Co", role="Dev\x85X", url="https://x.example/\x1b]0;t\x07")
+    args = _match_files(tmp_path, [hostile], MATCH_PROFILE)
+
+    table = runner.invoke(app, args)
+    as_json = runner.invoke(app, args + ["--json"])
+
+    assert esc not in table.output and "‮" not in table.output and "\x85" not in table.output
+    assert esc not in as_json.output and "‮" not in as_json.output
+    assert json.loads(as_json.output)["matches"][0]["job"]["company"] == hostile["company"]

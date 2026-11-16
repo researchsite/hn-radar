@@ -47,3 +47,31 @@ class Profile(BaseModel):
     languages: list[Language] = Field(default_factory=list)
     topics: list[str] = Field(default_factory=list)
     notable_repos: list[Repo] = Field(default_factory=list)
+
+
+class MatchReason(BaseModel):
+    kind: str  # language | topic | repo | remote
+    text: str
+    evidence: str  # the concrete repo, language or topic from the profile
+
+
+class MatchJob(BaseModel):
+    comment_id: int
+    company: str
+    role: str | None = None
+    remote: bool | None = None
+    url: str | None = None
+
+
+class Match(BaseModel):
+    rank: int
+    score: int
+    job: MatchJob
+    reasons: list[MatchReason]
+
+
+class MatchResult(BaseModel):
+    username: str
+    generated_at: str
+    status: str  # ok | no_strong_matches
+    matches: list[Match] = Field(default_factory=list)
