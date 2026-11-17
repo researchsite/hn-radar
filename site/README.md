@@ -12,7 +12,8 @@ site/
   careers/               THE deployable folder
     index.html           job explorer (search, filters, detail view)
     insights.html        top technologies, remote share, what posts leave out
-    company.html         company page, opened as company.html?job=<comment_id>: hiring post, Show HN posts, pulse (issue 41)
+    company.html         without ?job=: directory of every company with a teaser and a search box;
+                         with ?job=<comment_id>: that company's hiring post, Show HN posts, pulse (issue 41)
     journey.html         placeholder: coming soon (issue 31)
     check.html           placeholder: coming soon (issue 31)
     hn.css, hn.js        shared styles and helpers (text cleaning, safe links, designed states); hn.js holds PATHS
@@ -50,6 +51,8 @@ On the live site these are shared folders at the site root, so the move changes 
 The CSS and JS are loaded by plain `<link>` and `<script>` tags, which cannot read a variable. So in the dev layout they stay in `careers/` (the folder is self-contained and nothing of ours sits in the git-ignored `includes/`), and the copy script moves them to the site's `includes/` as `rw-hn.css` / `rw-hn.js` and rewrites those two tags in the copied pages (`./hn.css` becomes `../includes/rw-hn.css`). It stops with an error if a page has no such tag.
 
 ### Company page: data it reads and how to test it
+`company.html` with no `?job=` is the **company directory**: every post from `jobs.json` as a card (company, role, place, technologies, a teaser taken from the text after the post's first line), sorted A to Z, 50 at a time, with a search box for name, role, place or technology (`?q=` presets it). Picking a card opens `company.html?job=<comment_id>`; an invalid or unknown id shows a note above the directory instead of a dead end.
+
 `company.html?job=<comment_id>` reads three files, all through `H.paths.data` (so they move with the one variable):
 
 | File | What | Produced by | Today |

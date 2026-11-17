@@ -96,7 +96,7 @@
 
   // The page switcher shown on every page. current = file name of this page.
   function pages(current) {
-    var items = [['index.html', 'Jobs'], ['insights.html', 'Insights'], ['company.html', 'Company'], ['journey.html', 'How this was built'], ['check.html', 'Check yours']];
+    var items = [['index.html', 'Jobs'], ['insights.html', 'Insights'], ['company.html', 'Companies'], ['journey.html', 'How this was built'], ['check.html', 'Check yours']];
     var ul = el('ul', { className: 'rw-hn-pages', role: 'list', 'aria-label': 'HN Radar pages' });
     items.forEach(function (it) {
       var a = el('a', { className: 'rw-hn-pagelink', href: './' + it[0] }, it[1]);

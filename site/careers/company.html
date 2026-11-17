@@ -22,9 +22,9 @@
 
 <div id="content" class="rw-hn-wrap">
   <div id="hn-pages"></div>
-  <p class="rw-hn-small"><a class="rw-hn-link" href="./index.html">&larr; All jobs</a></p>
-  <h1 id="co-title">Company page</h1>
-  <p class="rw-hn-lead">The hiring post, the company's Show HN posts, and what the people on those threads said. Every point links to the Hacker News comment it came from.</p>
+  <p class="rw-hn-small" id="co-back" hidden><a class="rw-hn-link" href="./company.html">&larr; All companies</a></p>
+  <h1 id="co-title">Companies hiring</h1>
+  <p class="rw-hn-lead" id="co-lead">Pick a company to see its hiring post, its Show HN posts and what their users said. Every point links to the Hacker News comment it came from.</p>
 
   <div id="co-state" class="rw-hn-state" role="status" hidden></div>
   <div id="co-out" hidden></div>
@@ -68,6 +68,7 @@
     row('Technologies', tech);
     row('Original', H.extLink(H.hnItemUrl(j.id), 'HN comment ' + j.id, 'HN comment ' + j.id));
     row('Job link', j.url ? H.extLink(j.url.href, j.url.host, 'Job link ' + j.url.host) : el('span', { className: 'rw-hn-muted' }, 'no link in the post'));
+    row('Job explorer', el('a', { className: 'rw-hn-link', href: './index.html#c' + j.id }, 'Open this post in the explorer'));
     s.appendChild(dl);
     // closed is evidence, not status: only said when the poster's own reply is cited
     if (j.closed && H.hnItemUrl(j.closedId)) {
@@ -185,30 +186,112 @@
   }
   function show(title, text, action) { var st = $('co-state'); H.state(st, title, text, action); $('co-out').hidden = true; }
 
+  // ---- company directory (no job in the address): every post with a teaser, searchable ----
+  var DIR_PAGE = 50, TEASER = 170;
+  // the first line of a post repeats company, role and place, so the teaser is taken from what follows it
+  function teaser(text) {
+    var lines = text.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
+    var rest = (lines.length > 1 ? lines.slice(1).join(' ') : lines[0] || '').replace(/\s+/g, ' ');
+    return rest.length > TEASER ? rest.slice(0, TEASER).replace(/\s+\S*$/, '') + '\u2026' : rest;
+  }
+  function renderDirectory(jobs, notice, presetQuery) {
+    document.title = 'Companies | HN Radar | RawWeights';
+    $('co-title').textContent = 'Companies hiring';
+    $('co-lead').textContent = 'Pick a company to see its hiring post, its Show HN posts and what their users said. Every point links to the Hacker News comment it came from.';
+    $('co-back').hidden = true;
+    var out = $('co-out'); out.textContent = '';
+    if (notice) out.appendChild(noteBox(notice, true));
+    var items = jobs.map(function (j) {
+      j.teaser = teaser(j.text);
+      j.hay = (j.company + ' ' + j.role + ' ' + j.location + ' ' + j.stack.join(' ')).toLowerCase();
+      return j;
+    }).sort(function (a, b) { return (a.company || '\uffff').localeCompare(b.company || '\uffff', undefined, { sensitivity: 'base' }); });
+    var limit = DIR_PAGE;
+    var input = el('input', { id: 'co-q', type: 'search', autocomplete: 'off', placeholder: 'for example: Acme, rust, Berlin' });
+    if (presetQuery) input.value = clean(presetQuery).slice(0, 80);
+    out.appendChild(el('div', { className: 'rw-hn-panel', role: 'search', 'aria-label': 'Find a company' },
+      el('div', { className: 'rw-hn-field' }, [el('label', { 'for': 'co-q' }, 'Find a company by name, role, place or technology'), input])));
+    var count = el('p', { className: 'rw-hn-count', role: 'status', 'aria-live': 'polite' });
+    var none = el('div', { className: 'rw-hn-state', role: 'status' });
+    var list = el('ul', { className: 'rw-hn-list' });
+    var more = el('button', { type: 'button', className: 'rw-hn-btn', id: 'co-more' });
+    out.appendChild(count); out.appendChild(none); out.appendChild(list);
+    out.appendChild(el('p', { style: 'text-align:center;margin-top:16px' }, more));
+
+    function card(j) {
+      var href = './company.html?job=' + j.id, name = j.company || 'this company';
+      var li = el('li', { className: 'rw-hn-item' });
+      li.appendChild(el('h2', {}, el('a', { className: 'rw-hn-link', href: href }, j.company || 'Company not stated')));
+      li.appendChild(el('p', { className: 'rw-hn-meta' }, [j.role || 'Role not stated', j.location || 'Location not stated', H.remoteLabel({ remote: j.remote })].join(' \u00b7 ')));
+      if (j.stack.length) {
+        var chips = el('ul', { className: 'rw-hn-chips', 'aria-label': 'Technologies' });
+        j.stack.slice(0, 5).forEach(function (t) { chips.appendChild(el('li', {}, el('span', { className: 'rw-hn-tag' }, t))); });
+        if (j.stack.length > 5) chips.appendChild(el('li', {}, el('span', { className: 'rw-hn-tag rw-hn-tag--soft' }, '+' + (j.stack.length - 5) + ' more')));
+        li.appendChild(chips);
+      }
+      if (j.teaser) li.appendChild(el('p', { className: 'rw-hn-snippet' }, j.teaser));
+      li.appendChild(el('p', { className: 'rw-hn-actions' }, [
+        el('a', { className: 'rw-hn-btn', href: href, 'aria-label': 'Company page for ' + name }, 'Open company page'),
+        H.extLink(H.hnItemUrl(j.id), 'HN comment', 'HN comment from ' + name)]));
+      return li;
+    }
+    function draw() {
+      var q = clean(input.value).toLowerCase(), words = q ? q.split(' ') : [];
+      var hit = items.filter(function (j) { return words.every(function (w) { return j.hay.indexOf(w) !== -1; }); });
+      list.textContent = '';
+      hit.slice(0, limit).forEach(function (j) { list.appendChild(card(j)); });
+      var shown = Math.min(limit, hit.length);
+      count.textContent = shown < hit.length ? 'Showing ' + shown + ' of ' + hit.length + (q ? ' matches' : ' posts')
+        : hit.length + (q ? ' of ' + items.length + ' posts match' : ' posts');
+      more.hidden = hit.length <= limit; more.textContent = 'Show ' + Math.min(DIR_PAGE, hit.length - limit) + ' more';
+      none.hidden = hit.length > 0; list.hidden = hit.length === 0;
+      if (!hit.length) { none.textContent = ''; none.appendChild(el('strong', {}, 'No company matches')); none.appendChild(el('span', {}, 'Try fewer words, or just part of a name.')); }
+    }
+    var timer;
+    input.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(function () { limit = DIR_PAGE; draw(); }, 120); });
+    more.addEventListener('click', function () { limit += DIR_PAGE; draw(); });
+    draw();
+  }
+
+  // ---- one company: the hiring post, Show HN posts, pulse ----
+  function renderJob(job, id) {
+    $('co-back').hidden = false;
+    $('co-title').textContent = job.company || 'Company not stated';
+    $('co-lead').textContent = 'The hiring post, the company\'s Show HN posts, and what the people on those threads said. Every point links to the Hacker News comment it came from.';
+    document.title = (job.company || 'Company') + ' | HN Radar | RawWeights';
+    var out = $('co-out'); out.textContent = '';
+    out.appendChild(renderPost(job));
+    var showSec = section('Show HN posts'), pulseSec = section('Pulse');
+    out.appendChild(showSec); out.appendChild(pulseSec);
+    $('co-state').hidden = true; out.hidden = false;
+    H.loadJSON(H.paths.data + 'showhn/' + id + '.json', checkShowHN).then(function (d) {
+      var host = el('div'); var built = renderShowHN(d, job.company, host);
+      showSec.replaceWith(built); pulseSec.appendChild(host);
+    }).catch(function (e) {
+      showSec.appendChild(isMissing(e)
+        ? stateBox('Show HN data not produced yet', 'The Show HN lookup for this company has not been saved yet, so no stories are shown. This is not an error with the page.')
+        : stateBox('The Show HN data could not be read', 'The file for this job is not valid, so nothing is shown from it.'));
+      pulseSec.appendChild(stateBox('Nothing to summarise yet', 'The pulse is built from a Show HN thread, and there is no Show HN data for this job yet.'));
+    });
+  }
+
   function load() {
-    var raw = new URLSearchParams(location.search).get('job'), id = H.hnItemUrl(raw) ? parseInt(raw, 10) : null;
-    if (!id) { show('Choose a job', 'Open a job in the job explorer and follow its company link. This page needs a job in the address (company.html?job=...).', { label: 'Browse the jobs', run: function () { location.href = './index.html'; } }); return; }
+    var params = new URLSearchParams(location.search), raw = params.get('job');
+    var id = raw !== null && H.hnItemUrl(raw) ? parseInt(raw, 10) : null;
     show('Loading', 'Reading the data file.');
     H.loadJSON(H.paths.data + 'jobs.json', H.jobsList).then(function (data) {
-      var j = H.jobsList(data).filter(function (x) { return parseInt(x.comment_id, 10) === id; })[0];
-      if (!j) { show('This job is not in the data', 'No post with that id is in the jobs file. It may be from another month.', { label: 'Browse the jobs', run: function () { location.href = './index.html'; } }); return; }
-      var job = prep(j);
-      $('co-title').textContent = job.company || 'Company not stated';
-      document.title = (job.company || 'Company') + ' | HN Radar | RawWeights';
-      var out = $('co-out'); out.textContent = '';
-      out.appendChild(renderPost(job));
-      var showSec = section('Show HN posts'), pulseSec = section('Pulse');
-      out.appendChild(showSec); out.appendChild(pulseSec);
-      $('co-state').hidden = true; out.hidden = false;
-      H.loadJSON(H.paths.data + 'showhn/' + id + '.json', checkShowHN).then(function (d) {
-        var host = el('div'); var built = renderShowHN(d, job.company, host);
-        showSec.replaceWith(built); pulseSec.appendChild(host);
-      }).catch(function (e) {
-        showSec.appendChild(isMissing(e)
-          ? stateBox('Show HN data not produced yet', 'The Show HN lookup for this company has not been saved yet, so no stories are shown. This is not an error with the page.')
-          : stateBox('The Show HN data could not be read', 'The file for this job is not valid, so nothing is shown from it.'));
-        pulseSec.appendChild(stateBox('Nothing to summarise yet', 'The pulse is built from a Show HN thread, and there is no Show HN data for this job yet.'));
-      });
+      var posts = H.jobsList(data);
+      if (!posts.length) { show('No jobs in the data yet', 'The jobs file is there but has no posts. It is filled when the monthly thread is fetched.'); return; }
+      var notice = null;
+      if (id) {
+        var j = posts.filter(function (x) { return parseInt(x.comment_id, 10) === id; })[0];
+        if (j) { renderJob(prep(j), id); return; }
+        notice = 'No post with the id ' + id + ' is in the jobs file. It may be from another month. Pick a company below.';
+      } else if (raw !== null) {
+        notice = 'The address does not hold a valid job id. Pick a company below.';
+      }
+      $('co-state').hidden = true; $('co-out').hidden = false;
+      renderDirectory(posts.map(prep), notice, params.get('q'));
     }).catch(function () {
       show('The jobs data could not be loaded', 'The file data/jobs.json is missing or is not a list of posts.', { label: 'Try again', run: load });
     });
