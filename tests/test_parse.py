@@ -143,6 +143,35 @@ PROFILE_RESUME_LABELS = (  # 50403646: the old "Who wants to be hired?" format
     "Contact info: mustafadalga \\[at\\] gmail \\[dot\\] com\n"
     "Front-end engineer with 7+ years of experience in React/Next.js, Vue/Nuxt.js, and TypeScript."
 )
+PROFILE_RESUME_LABELS_MORE = {  # the other five resume-label profiles from the thread; contact values removed
+    "50344555": (
+        "Location: Huntington Beach, CA, USA\nRemote: Yes\nWilling to relocate: No\n"
+        "Technologies: C#/.NET, TypeScript, React, PostgreSQL, Linux\nRésumé/CV: https://example.invalid\n"
+        "Email: removed\nFractional CTO and contract work: web apps that do real work."
+    ),
+    "50349800": (
+        "Location: Dorset, UK\nRemote: Yes (UK, US and EU time zones)\nWilling to relocate: No\n"
+        "Technologies: Ruby on Rails, Python (FastAPI), TypeScript/Node, Go\nRésumé/CV: https://example.invalid\n"
+        "Email: removed\nSenior engineer, 15 years. I build complete products on a fixed scope."
+    ),
+    "50353980": (
+        "Location: Andalucía, Spain (CET)\nRemote: Yes, remote only\nWilling to relocate: No (EU citizen)\n"
+        "Technologies: TypeScript, React, Next.js, Node.js, Fastify\nRésumé/CV: https://example.invalid\n"
+        "Email: removed\nFull-stack engineer, 6+ years on 100% remote teams."
+    ),
+    "50430411": (
+        "Location: Bangalore, India (IST / UTC+5:30)\nRemote: Yes (Worldwide)\n"
+        "Willing to relocate: Yes (Worldwide, visa sponsorship required)\n"
+        "Technologies: TypeScript, Node.js, Go, Python, React, PostgreSQL\nRésumé/CV: https://example.invalid\n"
+        "Email: removed\nSenior Software Engineer (~5 YoE) building real-time AI systems.\nExperience:"
+    ),
+    "50479091": (
+        "Location: India (currently travelling within India; IST, UTC+5:30)\nRemote: Yes, remote only\n"
+        "Willing to relocate: No\nTechnologies: React, TypeScript, Python, Kotlin/Spring Boot, GraphQL\n"
+        "Résumé/CV: https://example.invalid\nGitHub: https://example.invalid\nEmail: removed\n"
+        "Full-stack engineer, ~5 yrs."
+    ),
+}
 JOB_SEEKING_FREELANCER = (  # 50352957: a company looking for a freelancer
     "SEEKING FREELANCER | Devops Engineer | Remote - UK or EU\n"
     "getregistered is a better way to do event registration.\n"
@@ -175,6 +204,11 @@ def test_candidate_profiles_are_detected(text):
     assert is_candidate_profile(text)
 
 
+@pytest.mark.parametrize("post_id", sorted(PROFILE_RESUME_LABELS_MORE))
+def test_every_known_resume_label_profile_is_detected(post_id):
+    assert is_candidate_profile(PROFILE_RESUME_LABELS_MORE[post_id])
+
+
 @pytest.mark.parametrize(
     "text",
     [JOB_SEEKING_FREELANCER, JOB_FOUNDER_INTRO, JOB_LOOKING_TO_HIRE, JOB_RECRUITER_INTRO],
@@ -187,6 +221,23 @@ def test_real_jobs_that_look_like_profiles_stay(text):
 def test_ordinary_jobs_are_not_profiles():
     for html in (PIPE_COMMENT, FREEFORM_COMMENT, ONSITE_COMMENT):
         assert not is_candidate_profile(html_to_text(html))
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "I'm looking for a developer to help build Acme's product.",
+        "I'm a founder looking for a developer to join the build.",
+        "I am seeking an engineer for a six-month contract.",
+        "Hi, I'm Max and I need a designer for our launch.",
+    ],
+)
+def test_first_person_request_for_a_role_is_a_job(text):
+    assert not is_candidate_profile(text)
+
+
+def test_profile_that_is_looking_for_work_is_still_detected():
+    assert is_candidate_profile("I'm a software engineer looking for a new role in Berlin.")
 
 
 def test_intro_with_a_hiring_cue_is_kept():

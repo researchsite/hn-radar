@@ -145,9 +145,10 @@ def _guess_company(first_line: str) -> str:
 #    (a founder or recruiter also writes "I'm ...", e.g. "I'm an independent recruiter", "I'm looking to hire");
 # 2) resume style (the old "Who wants to be hired?" format): a "Willing to relocate:" line plus two more
 #    resume labels in the first lines.
+_REQUEST = r"(?!(?:looking|seeking|searching|hiring|need|want)\b)"  # "I'm looking for a developer" is a job
 _INTRO = re.compile(
-    r"^(?:(?:hi|hello)[,!.]?\s+)?(?:i['’]m|i am|my name is)\b[^.\n]{0,80}?\b(?:an?|the)\s+"
-    r"(?:[\w&+/-]+\s+){0,4}?(?:engineer|developer|designer|scientist|analyst|architect)\b",
+    r"^(?:(?:hi|hello)[,!.]?\s+)?(?:i['’]m|i am|my name is)\b(?:" + _REQUEST + r"[^.\n]){0,80}?\b(?:an?|the)\s+"
+    r"(?:" + _REQUEST + r"[\w&+/-]+\s+){0,4}?(?:engineer|developer|designer|scientist|analyst|architect)\b",
     re.I,
 )
 _HIRE_CUE = re.compile(
