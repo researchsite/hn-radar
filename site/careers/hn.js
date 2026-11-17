@@ -7,7 +7,7 @@
   // WHERE FILES LIVE. The only place a page learns the location of data, pictures and videos.
   // Here (dev) they sit inside careers/. On the live site they are shared at the site root; the move script
   // (site/_private/publish-to-site.ps1) rewrites this one line in the copy, or change it by hand: see site/README.md.
-  var PATHS = { data: './data/', images: './images/', videos: './videos/' };
+  var PATHS = { data: './data/', images: './images/', videos: './videos/', search: './pagefind/' };
 
   // Control characters, DEL and C1, zero-width and bidirectional/format characters.
   var BAD = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f​-‏‪-‮⁠-⁯﻿]/g;
@@ -86,6 +86,40 @@
       .then(function (d) { if (validate) validate(d); return d; });
   }
 
+  // Full-text search over the careers-only Pagefind index (built by site/tools/build_careers_index.py into careers/pagefind/).
+  // It is a separate index from the site search and is loaded with the Pagefind JS API, so the two share nothing.
+  // Resolves to a Map comment_id -> rank (0 = best match), or to null when the index cannot be loaded or queried:
+  // the caller then falls back to its own plain match. Only the comment id of each result is read: no excerpt or
+  // other text from the index is ever inserted into the page.
+  var pagefind = null, metaById = {};
+  function loadPagefind() {
+    if (!pagefind) {
+      // Resolved against the page, not this script: after the move this file lives in /includes/, the index in /careers/pagefind/.
+      var url = new URL(PATHS.search + 'pagefind.js', document.baseURI).href;
+      pagefind = import(url).then(function (pf) { return pf.options({ excerptLength: 0 }).then(function () { return pf; }); });
+    }
+    return pagefind;
+  }
+  function search(query) {
+    return loadPagefind().then(function (pf) {
+      return pf.search(query).then(function (found) {
+        return Promise.all(found.results.map(function (r) {
+          // the id is stored as meta; each indexed page is also named <comment_id>.html, which is the backup
+          if (!metaById[r.id]) metaById[r.id] = r.data().then(function (d) {
+            var id = d && d.meta ? parseInt(d.meta.comment_id, 10) : NaN;
+            if (!(id > 0)) { var m = /(\d+)\.html$/.exec(d && d.url || ''); id = m ? parseInt(m[1], 10) : NaN; }
+            return id;
+          });
+          return metaById[r.id];
+        }));
+      });
+    }).then(function (ids) {
+      var ranks = new Map();
+      ids.forEach(function (id, i) { if (id > 0 && !ranks.has(id)) ranks.set(id, i); });
+      return ranks;
+    }).catch(function () { pagefind = null; metaById = {}; return null; });
+  }
+
   function jobsList(d) {
     if (!Array.isArray(d)) throw new Error('not a list');
     return d.filter(function (j) { return j && typeof j === 'object' && hnItemUrl(j.comment_id); });
@@ -106,6 +140,6 @@
     return ul;
   }
 
-  window.HN = { paths: PATHS, clean: clean, cleanBlock: cleanBlock, hnItemUrl: hnItemUrl, safeUrl: safeUrl, el: el, extLink: extLink,
+  window.HN = { paths: PATHS, search: search, clean: clean, cleanBlock: cleanBlock, hnItemUrl: hnItemUrl, safeUrl: safeUrl, el: el, extLink: extLink,
     citations: citations, state: state, loadJSON: loadJSON, jobsList: jobsList, remoteKey: remoteKey, remoteLabel: remoteLabel, pages: pages };
 })();
