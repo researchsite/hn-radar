@@ -84,9 +84,9 @@
   function checkShowHN(d) {
     if (!d || typeof d !== 'object' || Array.isArray(d)) throw new Error('not an object');
     if (!int(d.total_hits) || d.total_hits < 0) throw new Error('total_hits');
-    if (d.candidates !== undefined && !Array.isArray(d.candidates)) throw new Error('candidates');
+    if (!Array.isArray(d.candidates)) throw new Error('candidates');
     // an entry without a valid story id and title means the file is broken, not that there are no stories
-    (d.candidates || []).forEach(function (c) {
+    d.candidates.forEach(function (c) {
       if (!c || typeof c !== 'object' || !H.hnItemUrl(c.story_id) || typeof c.title !== 'string') throw new Error('candidate');
     });
   }
@@ -135,6 +135,10 @@
     if (!d || typeof d !== 'object' || Array.isArray(d)) throw new Error('not an object');
     if (['ok', 'not_enough_signal'].indexOf(d.status) === -1) throw new Error('status');
     if (!Array.isArray(d.items)) throw new Error('items');
+    // an item of an unknown kind or without text means a broken file, not a thread with nothing in it
+    d.items.forEach(function (it) {
+      if (!it || typeof it !== 'object' || ['pro', 'bug', 'ask'].indexOf(it.kind) === -1 || typeof it.summary !== 'string') throw new Error('item');
+    });
   }
   function renderPulse(d) {
     var wrap = el('div');
@@ -170,7 +174,10 @@
     var token = ++pulseToken;
     body.textContent = '';
     body.appendChild(el('p', { className: 'rw-hn-muted' }, 'Loading the pulse...'));
-    H.loadJSON(H.paths.data + 'pulse/' + storyId + '.json', checkPulse).then(function (d) {
+    H.loadJSON(H.paths.data + 'pulse/' + storyId + '.json', function (d) {
+      checkPulse(d);
+      if (d.story_id !== undefined && parseInt(d.story_id, 10) !== storyId) throw new Error('story_id');   // saved under the wrong thread
+    }).then(function (d) {
       if (token !== pulseToken) return;
       body.textContent = ''; body.appendChild(renderPulse(d));
     }).catch(function (e) {
