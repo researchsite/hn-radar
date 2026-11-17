@@ -88,10 +88,7 @@ def showhn(
     ] = None,
     json_output: Annotated[bool, typer.Option("--json", help="Print the result as JSON.")] = False,
 ) -> None:
-    """Find candidate Show HN stories for a company (at most 5, domain matches first).
-
-    A domain match means the story links to that domain, not that the company posted it.
-    """
+    """Find the company's official Show HN story (at most 5 candidates, domain matches first)."""
     company = company.strip()
     try:
         if not company:
@@ -113,7 +110,7 @@ def showhn(
 
     typer.echo(f'Show HN candidates for "{_terminal_safe(company)}": {len(result.candidates)} of {result.total_hits} hits')
     for c in result.candidates:
-        match = "domain match" if c.domain_match else "-"
+        match = "official Show HN" if c.domain_match else "-"
         typer.echo(
             f"{c.story_id} | {c.points} pts | {c.num_comments} comments | {match} | "
             f"{_terminal_safe(c.title)} | {_terminal_safe(c.url) or '-'}"

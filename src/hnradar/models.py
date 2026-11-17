@@ -20,8 +20,7 @@ class ShowHNCandidate(BaseModel):
     points: int
     num_comments: int
     url: str | None = None
-    # True when the story URL's host is the requested domain or a subdomain. It means "the story links
-    # to that domain", not "the company posted it": a story on notion.so matches for any notion.so page.
+    # True when the story URL's host is the requested domain or a subdomain: the company's own story.
     domain_match: bool = False
 
 

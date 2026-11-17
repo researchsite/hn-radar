@@ -417,7 +417,7 @@ def test_search_show_hn_empty_domain_is_an_error_before_any_request(respx_mock, 
 
 
 @pytest.mark.parametrize("status", [403, 404, 429, 500, 503])
-def test_search_show_hn_domain_request_failure_raises_and_leaves_no_partial_result(respx_mock, tmp_path, status):
+def test_search_show_hn_domain_request_failure_falls_back_to_the_name_results(respx_mock, tmp_path, status):
     def respond(request):
         if request.url.params.get("restrictSearchableAttributes"):
             return httpx.Response(status, json={"message": "nope"})
@@ -425,8 +425,9 @@ def test_search_show_hn_domain_request_failure_raises_and_leaves_no_partial_resu
 
     respx_mock.get(SHOW_HN_URL).mock(side_effect=respond)
 
-    with pytest.raises(httpx.HTTPStatusError):
-        hn.search_show_hn("Acme", domain="acme.com", cache_dir=tmp_path)
+    found = hn.search_show_hn("Acme", domain="acme.com", cache_dir=tmp_path)
+
+    assert [h["story_id"] for h in found["hits"]] == [1]
     assert len(list(tmp_path.glob("search_*.json"))) == 1  # only the good name search is cached
 
 
@@ -439,7 +440,7 @@ def test_search_show_hn_domain_request_failure_raises_and_leaves_no_partial_resu
         {"content": b"<html>oops"},  # not JSON
     ],
 )
-def test_search_show_hn_domain_response_of_the_wrong_shape_raises_and_is_not_cached(respx_mock, tmp_path, second):
+def test_search_show_hn_domain_response_of_the_wrong_shape_falls_back_and_is_not_cached(respx_mock, tmp_path, second):
     def respond(request):
         if request.url.params.get("restrictSearchableAttributes"):
             return httpx.Response(200, **second)
@@ -447,6 +448,7 @@ def test_search_show_hn_domain_response_of_the_wrong_shape_raises_and_is_not_cac
 
     respx_mock.get(SHOW_HN_URL).mock(side_effect=respond)
 
-    with pytest.raises(hn.HNError):
-        hn.search_show_hn("Acme", domain="acme.com", cache_dir=tmp_path)
+    found = hn.search_show_hn("Acme", domain="acme.com", cache_dir=tmp_path)
+
+    assert [h["story_id"] for h in found["hits"]] == [1]
     assert len(list(tmp_path.glob("search_*.json"))) == 1

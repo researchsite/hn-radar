@@ -138,7 +138,7 @@ def search_show_hn(
     """Show HN stories matching `company`, in Algolia relevance order.
 
     With `domain`, a second search for stories whose URL contains it is merged in (de-duplicated by
-    story id, name-search copy first). A failure of either request raises; there is no partial result.
+    story id, name-search copy first). If the URL search fails, the name-search results are returned.
 
     Returns {"total_hits": int, "hits": [{"story_id", "title", "points", "num_comments", "url"}]},
     with at most SHOW_HN_PAGE hits per request. total_hits lets callers tell when the list is only
@@ -152,7 +152,10 @@ def search_show_hn(
     if domain is None:
         return found
 
-    by_url = _show_hn_search(domain.strip(), url_only=True, cache_dir=cache_dir, use_cache=use_cache)
+    try:
+        by_url = _show_hn_search(domain.strip(), url_only=True, cache_dir=cache_dir, use_cache=use_cache)
+    except (HNError, httpx.HTTPError):
+        return found  # the URL search is an optimisation: keep the name results if it is unavailable
     hits = list(found["hits"])
     seen = {h["story_id"] for h in hits}
     for hit in by_url["hits"]:

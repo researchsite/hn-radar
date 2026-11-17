@@ -50,6 +50,6 @@ def build_result(company: str, domain: str | None, hits: list[dict], total_hits:
         domain=wanted,
         candidates=kept,
         total_hits=total_hits,
-        truncated=total_hits > len(kept),
+        truncated=total_hits > len(candidates),  # truncated: Algolia matched more stories than it returned
         low_confidence=not any(c.domain_match for c in kept),
     )
