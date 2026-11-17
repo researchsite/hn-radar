@@ -1,6 +1,6 @@
 import pytest
 
-from hnradar.parse import extract_stack, html_to_text, parse_comment
+from hnradar.parse import extract_stack, html_to_text, is_candidate_profile, parse_comment
 
 from conftest import FREEFORM_COMMENT, ONSITE_COMMENT, PIPE_COMMENT
 
@@ -117,3 +117,89 @@ def test_go_is_only_the_language_in_clear_contexts(text, expected):
 
 def test_golang_and_go_do_not_double_count():
     assert extract_stack("Golang, Go, Rust").count("Go") == 1
+
+
+# Real posts from the November 2026 thread, shortened (ids in the comments). Profiles first, then real jobs
+# that look similar and must stay.
+PROFILE_PIPE_FORMAT = (  # 50454490: pipe header, so it even gets a role and remote
+    "Hemant Singh | Software Engineer / Backend Engineer | India (REMOTE / ONSITE)\n"
+    "I'm a software engineer focused on backend development, primarily working with Java, Spring Boot, and Python.\n"
+    "Technical Skills:"
+)
+PROFILE_INTRO = (  # 50388471
+    "I'm Sushant Gangurde, A Software Engineer focused on Full-Stack Development and AI-powered applications.\n"
+    "I work with React, Next.js, TypeScript, Node.js, Python, PostgreSQL and MongoDB."
+)
+PROFILE_INTRO_AND = (  # 50382899
+    "I'm Rajneesh Verma, a Full-Stack & AI Engineer currently working with a YC-backed startup.\n"
+    "I have hands-on experience building and shipping production-ready applications."
+)
+PROFILE_RESUME_LABELS = (  # 50403646: the old "Who wants to be hired?" format
+    "Location: Estonia Remote:Yes\n"
+    "Willing to relocate: No\n"
+    "Technologies: React.js,Vue.js, Next.js,Nuxt.js ,TypeScript, SCSS, CSS3, Tailwind CSS, Redux, Zustand\n"
+    "Part-time/Freelance: Yes\n"
+    "Linkedin: https://www.linkedin.com/in/mustafadalga/\n"
+    "Contact info: mustafadalga \\[at\\] gmail \\[dot\\] com\n"
+    "Front-end engineer with 7+ years of experience in React/Next.js, Vue/Nuxt.js, and TypeScript."
+)
+JOB_SEEKING_FREELANCER = (  # 50352957: a company looking for a freelancer
+    "SEEKING FREELANCER | Devops Engineer | Remote - UK or EU\n"
+    "getregistered is a better way to do event registration.\n"
+    "We're looking for an experienced devops freelancer to help manage and enhance our GCP + Terraform stack.\n"
+    "Please email hn@getregistered.com with LinkedIn / CV / Samples of work."
+)
+JOB_FOUNDER_INTRO = (  # 50369728
+    "Matcha.fm | REMOTE (Worldwide: US / Canada / Europe / UK / LATAM) | Full-time | https://matcha.fm\n"
+    "I'm a Canadian repeat founder working on agents that cut the noise in large dataset search.\n"
+    "Looking for a great builder (founding software engineer) and a great marketer."
+)
+JOB_LOOKING_TO_HIRE = (  # 50428062
+    "Collabify | Senior Full-Stack Engineer (backend-heavy) | REMOTE (worldwide) | Contract\n"
+    "I'm looking to hire our first engineer to own architecture and build product first version.\n"
+    "Stack: TypeScript, React/Next.js, Node.js and PostgreSQL."
+)
+JOB_RECRUITER_INTRO = (  # 50484305
+    "*Confidential Healthcare AI Startup | Senior Full Stack Engineer (Frontend-Leaning) | NYC | Hybrid\n"
+    "I'm an independent recruiter sourcing for a venture-backed healthcare technology startup.\n"
+    "The company has raised $50M+ and is looking for a senior, frontend-focused engineer."
+)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [PROFILE_PIPE_FORMAT, PROFILE_INTRO, PROFILE_INTRO_AND, PROFILE_RESUME_LABELS],
+    ids=["pipe-format", "intro", "intro-ampersand-title", "resume-labels"],
+)
+def test_candidate_profiles_are_detected(text):
+    assert is_candidate_profile(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [JOB_SEEKING_FREELANCER, JOB_FOUNDER_INTRO, JOB_LOOKING_TO_HIRE, JOB_RECRUITER_INTRO],
+    ids=["seeking-freelancer", "founder-intro", "looking-to-hire", "recruiter-intro"],
+)
+def test_real_jobs_that_look_like_profiles_stay(text):
+    assert not is_candidate_profile(text)
+
+
+def test_ordinary_jobs_are_not_profiles():
+    for html in (PIPE_COMMENT, FREEFORM_COMMENT, ONSITE_COMMENT):
+        assert not is_candidate_profile(html_to_text(html))
+
+
+def test_intro_with_a_hiring_cue_is_kept():
+    text = "I'm a software engineer and we're hiring two more backend engineers for our team."
+    assert not is_candidate_profile(text)
+
+
+def test_resume_labels_need_the_relocate_line():
+    # A job written as "Key: value" lines with Location, Technologies and Email is still a job.
+    text = "Company: Acme\nLocation: Berlin\nTechnologies: Python, Go\nEmail: jobs@acme.example"
+    assert not is_candidate_profile(text)
+
+
+@pytest.mark.parametrize("text", ["", "\n", "   ", "https://example.com"])
+def test_empty_and_link_only_posts_do_not_crash(text):
+    assert not is_candidate_profile(text)

@@ -9,6 +9,8 @@ from hnradar.models import Job, Profile
 
 from conftest import (
     ITEM_URL,
+    ONSITE_COMMENT,
+    PIPE_COMMENT,
     REPOS_URL,
     SEARCH_RESPONSE,
     SEARCH_URL,
@@ -675,3 +677,59 @@ def test_showhn_prints_no_cut_hint_when_nothing_was_cut(respx_mock, tmp_path, mo
 
     assert result.exit_code == 0, result.output
     assert "Showing " not in result.output
+
+
+def _thread_with_profile(respx_mock, texts):
+    respx_mock.get(SEARCH_URL).mock(return_value=httpx.Response(200, json=SEARCH_RESPONSE))
+    children = [{"id": 300 + i, "type": "comment", "text": t, "children": []} for i, t in enumerate(texts)]
+    respx_mock.get(ITEM_URL).mock(
+        return_value=httpx.Response(200, json={"id": STORY_ID, "title": "Ask HN: Who is hiring? (November 2026)", "children": children})
+    )
+
+
+PROFILE_HTML = "I&#x27;m Sushant Gangurde, A Software Engineer focused on Full-Stack Development.<p>I work with React."
+
+
+def test_fetch_hiring_skips_candidate_profiles_and_says_so(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _thread_with_profile(respx_mock, [PIPE_COMMENT, PROFILE_HTML, ONSITE_COMMENT])
+    out = tmp_path / "jobs.json"
+
+    result = runner.invoke(app, ["fetch-hiring", "--out", str(out)])
+
+    assert result.exit_code == 0, result.output
+    assert "Wrote 2 jobs" in result.output
+    assert "Skipped 1 candidate profile" in result.output
+    assert [j["comment_id"] for j in json.loads(out.read_text(encoding="utf-8"))] == [300, 302]
+
+
+def test_fetch_hiring_json_keeps_stdout_valid_and_reports_skips_on_stderr(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _thread_with_profile(respx_mock, [PROFILE_HTML, PROFILE_HTML, PIPE_COMMENT])
+
+    result = runner.invoke(app, ["fetch-hiring", "--json"])
+
+    assert result.exit_code == 0, result.output
+    assert [j["comment_id"] for j in json.loads(result.stdout)] == [302]
+    assert "Skipped 2 candidate profiles" in result.stderr
+    assert "Skipped" not in result.stdout
+
+
+def test_fetch_hiring_prints_no_skip_note_when_nothing_was_skipped(mock_hn, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(app, ["fetch-hiring", "--out", str(tmp_path / "jobs.json")])
+
+    assert result.exit_code == 0, result.output
+    assert "Skipped" not in result.output
+
+
+def test_fetch_hiring_limit_counts_profiles_among_the_examined_comments(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _thread_with_profile(respx_mock, [PROFILE_HTML, PIPE_COMMENT])
+
+    result = runner.invoke(app, ["fetch-hiring", "--limit", "1", "--out", str(tmp_path / "jobs.json")])
+
+    assert result.exit_code == 0, result.output
+    assert "Wrote 0 jobs" in result.output
+    assert "Skipped 1 candidate profile" in result.output

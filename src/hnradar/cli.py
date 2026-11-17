@@ -11,7 +11,7 @@ from hnradar.closed import closing_reply_id
 from hnradar.fingerprint import build_profile
 from hnradar.match import top_matches
 from hnradar.models import Job, MatchResult, Profile
-from hnradar.parse import parse_comment
+from hnradar.parse import is_candidate_profile, parse_comment
 from hnradar.showhn import build_result, normalize_domain
 from hnradar.sources import github, hn
 
@@ -43,8 +43,12 @@ def fetch_hiring(
     if limit is not None:
         comments = comments[:limit]
     jobs = []
+    skipped = 0
     for c in comments:
         job = parse_comment(int(c["id"]), c["text"])
+        if is_candidate_profile(job.raw_text):  # a person offering themselves, not a job
+            skipped += 1
+            continue
         closed_id = closing_reply_id(c)
         if closed_id is not None:
             job.closed, job.closed_comment_id = True, closed_id
@@ -56,12 +60,17 @@ def fetch_hiring(
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(records, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
+    skipped_note = f"Skipped {skipped} candidate {'profile' if skipped == 1 else 'profiles'}"
     if json_output:
         # ensure_ascii escapes every non-ASCII character (incl. C1 controls such as U+009B) on stdout.
         typer.echo(json.dumps(records, indent=2, ensure_ascii=True))
+        if skipped:
+            typer.echo(skipped_note, err=True)  # stderr keeps stdout valid JSON
         return
 
     typer.echo(f'Wrote {len(jobs)} jobs from "{_terminal_safe(story["title"])}" to {target}')
+    if skipped:
+        typer.echo(skipped_note)
     for j in jobs:
         typer.echo(f"{_terminal_safe(j.company)} | {_terminal_safe(j.role) or '-'} | {_remote_label(j.remote)}")
 
