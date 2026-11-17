@@ -79,10 +79,23 @@
     }
   }
 
+  // When the jobs file was last written (its Last-Modified header, which is the day it was copied to the site after a crawl).
+  // Pages that have <p id="hn-crawled" hidden> get it filled; no header, no note.
+  function showCrawled(r) {
+    var node = document.getElementById('hn-crawled'), when = new Date(r.headers.get('Last-Modified') || '');
+    if (!node || isNaN(when.getTime())) return;
+    node.textContent = 'Posts crawled from Hacker News: ' + when.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) + ' (date of the jobs file).';
+    node.hidden = false;
+  }
+
   // Fetch JSON with a visible failure. validate(data) may throw to reject the shape.
   function loadJSON(path, validate) {
     return fetch(path, { cache: 'no-cache' })
-      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        if (/(^|\/)jobs\.json$/.test(path)) showCrawled(r);
+        return r.json();
+      })
       .then(function (d) { if (validate) validate(d); return d; });
   }
 

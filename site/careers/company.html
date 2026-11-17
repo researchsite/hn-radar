@@ -25,6 +25,7 @@
   <p class="rw-hn-small" id="co-back" hidden><a class="rw-hn-link" href="./company.html">&larr; All companies</a></p>
   <h1 id="co-title">Companies hiring</h1>
   <p class="rw-hn-lead" id="co-lead">Pick a company to see its hiring post, its Show HN posts and what their users said. Every point links to the Hacker News comment it came from.</p>
+  <p class="rw-hn-small rw-hn-muted" id="hn-crawled" hidden></p>
 
   <div id="co-state" class="rw-hn-state" role="status" hidden></div>
   <div id="co-out" hidden></div>
@@ -188,6 +189,13 @@
 
   // ---- company directory (no job in the address): every post with a teaser, searchable ----
   var DIR_PAGE = 50, TEASER = 170;
+  // How much we know about a company, so the best-documented come first (this page is not a second job list).
+  // One point per stated fact, up to 6 for technologies and 3 for a long post. Show HN and pulse data will add to it
+  // once those files exist for every job (issue 32, ticket 13).
+  function detailScore(j) {
+    return Math.min(j.stack.length, 6) + (j.role ? 1 : 0) + (j.location ? 1 : 0) + (j.remote !== null ? 1 : 0)
+      + (j.url ? 1 : 0) + Math.min(3, Math.floor(j.text.length / 500));
+  }
   // the first line of a post repeats company, role and place, so the teaser is taken from what follows it
   function teaser(text) {
     var lines = text.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
@@ -204,13 +212,23 @@
     var items = jobs.map(function (j) {
       j.teaser = teaser(j.text);
       j.hay = (j.company + ' ' + j.role + ' ' + j.location + ' ' + j.stack.join(' ')).toLowerCase();
+      j.detail = detailScore(j);
       return j;
-    }).sort(function (a, b) { return (a.company || '\uffff').localeCompare(b.company || '\uffff', undefined, { sensitivity: 'base' }); });
+    });
+    var byName = function (a, b) { return (a.company || '\uffff').localeCompare(b.company || '\uffff', undefined, { sensitivity: 'base' }); };
+    var order = {
+      detail: function (a, b) { return b.detail - a.detail || byName(a, b); },
+      name: byName
+    };
+    items.sort(order.detail);
     var limit = DIR_PAGE;
+    var sortSel = el('select', { id: 'co-sort' }, [el('option', { value: 'detail' }, 'Most detail first'), el('option', { value: 'name' }, 'Company name, A to Z')]);
     var input = el('input', { id: 'co-q', type: 'search', autocomplete: 'off', placeholder: 'for example: Acme, rust, Berlin' });
     if (presetQuery) input.value = clean(presetQuery).slice(0, 80);
     out.appendChild(el('div', { className: 'rw-hn-panel', role: 'search', 'aria-label': 'Find a company' },
-      el('div', { className: 'rw-hn-field' }, [el('label', { 'for': 'co-q' }, 'Find a company by name, role, place or technology'), input])));
+      el('div', { className: 'rw-hn-row' }, [
+        el('div', { className: 'rw-hn-field rw-hn-grow' }, [el('label', { 'for': 'co-q' }, 'Find a company by name, role, place or technology'), input]),
+        el('div', { className: 'rw-hn-field' }, [el('label', { 'for': 'co-sort' }, 'Order'), sortSel])])));
     var count = el('p', { className: 'rw-hn-count', role: 'status', 'aria-live': 'polite' });
     var none = el('div', { className: 'rw-hn-state', role: 'status' });
     var list = el('ul', { className: 'rw-hn-list' });
@@ -250,6 +268,7 @@
     var timer;
     input.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(function () { limit = DIR_PAGE; draw(); }, 120); });
     more.addEventListener('click', function () { limit += DIR_PAGE; draw(); });
+    sortSel.addEventListener('change', function () { items.sort(order[sortSel.value]); limit = DIR_PAGE; draw(); });
     draw();
   }
 
