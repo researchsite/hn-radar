@@ -12,7 +12,7 @@ site/
   careers/               THE deployable folder
     index.html           job explorer (search, filters, detail view)
     insights.html        top technologies, remote share, what posts leave out
-    company.html         placeholder: coming soon (issue 31)
+    company.html         company page, opened as company.html?job=<comment_id>: hiring post, Show HN posts, pulse (issue 41)
     journey.html         placeholder: coming soon (issue 31)
     check.html           placeholder: coming soon (issue 31)
     hn.css, hn.js        shared styles and helpers (text cleaning, safe links, designed states); hn.js holds PATHS
@@ -48,6 +48,19 @@ On the live site these are shared folders at the site root, so the move changes 
 | Videos | `careers/videos/careers-<name>.mp4` | `images/videos/careers-<name>.mp4` |
 
 The CSS and JS are loaded by plain `<link>` and `<script>` tags, which cannot read a variable. So in the dev layout they stay in `careers/` (the folder is self-contained and nothing of ours sits in the git-ignored `includes/`), and the copy script moves them to the site's `includes/` as `rw-hn.css` / `rw-hn.js` and rewrites those two tags in the copied pages (`./hn.css` becomes `../includes/rw-hn.css`). It stops with an error if a page has no such tag.
+
+### Company page: data it reads and how to test it
+`company.html?job=<comment_id>` reads three files, all through `H.paths.data` (so they move with the one variable):
+
+| File | What | Produced by | Today |
+|---|---|---|---|
+| `jobs.json` | the hiring post | `hnradar fetch-hiring` | exists |
+| `showhn/<comment_id>.json` | Show HN candidates for that job (`hnradar showhn --json` shape, `built/showhn_result.schema.json`) | not saved anywhere yet (gap 3 in issue 32) | missing: the page shows "not produced yet" |
+| `pulse/<story_id>.json` | pros, bugs and asks for one Show HN thread (`planned/pulse.schema.json`) | `hnradar pulse` (issue 13, not built) | missing: the page shows "not produced yet" |
+
+Every state is designed: missing file ("not produced yet"), invalid file, no Show HN post (`no_show_hn`), low confidence, "5 of 813" when truncated, `not_enough_signal`. A pulse point without a valid HN comment id is never shown, and the page says how many were hidden (AGENTS.md rule 1).
+
+To test with data: copy files from `_private/schema/examples/` into `careers/data/showhn/` and `careers/data/pulse/` (named as in the table). That folder is git-ignored, and **`publish-to-site.ps1` publishes only an allowlist (`$DataAllow`, today `jobs.json`)**, so test files are never published. Add a path to the allowlist only when the data is real.
 
 ### The site's own icon and manifest files
 The shared nav script (`includes/rw-nav.js`) adds the favicon, `apple-touch-icon` and `site.webmanifest` links to the `<head>` of every page. The pages here do not reference them and do not need them. They are copied into the dev folder only so the preview server does not log 404s for them.
