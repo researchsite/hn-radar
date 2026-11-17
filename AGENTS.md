@@ -86,6 +86,17 @@ would overwrite the full committed file.
    Why: a false "official story" claim reads as confident as a true one, and the outreach draft built
    on it would repeat the claim to a person at that company.
 
+10. **A failed upstream request is never returned as a complete result.** When a request to an
+    outside service (HN Algolia, GitHub, a model server) fails, is rejected, is rate limited, times
+    out or returns malformed data, the code must raise a clear error (the CLI then prints
+    `Error: ...` and exits 1) or say in the result that data is missing. It must not catch the
+    failure and return what it has as if it were complete. A deliberate fallback is allowed only when
+    the output says it was used and the ticket asks for it. A cache entry that cannot be read is a
+    miss: the data is fetched again and nothing is lost, so that case is fine.
+    Applies to: `src/hnradar/sources/` and every command in `src/hnradar/cli.py` that calls it.
+    Why: a swallowed failure looks exactly like a complete answer; a Show HN lookup that silently
+    dropped its second search would hide the company's own story from the user.
+
 ## Quality gate (definition of done)
 
 A coding task is done only when all of these hold. Findings come from any reviewer (a person or an
