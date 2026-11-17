@@ -7,7 +7,17 @@ from typer.testing import CliRunner
 from hnradar.cli import _terminal_safe, app
 from hnradar.models import Job, Profile
 
-from conftest import ITEM_URL, REPOS_URL, SEARCH_RESPONSE, SEARCH_URL, STORY_ID, make_show_hit, show_hn_route
+from conftest import (
+    ITEM_URL,
+    REPOS_URL,
+    SEARCH_RESPONSE,
+    SEARCH_URL,
+    SHOW_HN_URL,
+    STORY_ID,
+    make_show_hit,
+    show_hn_route,
+    show_hn_routes,
+)
 
 runner = CliRunner()
 
@@ -230,7 +240,7 @@ def test_showhn_prints_ranked_table_with_domain_match_first(respx_mock, tmp_path
     assert result.exit_code == 0, result.output
     lines = result.output.splitlines()
     assert lines[0] == 'Show HN candidates for "Acme": 2 of 2 hits'
-    assert lines[1] == "2 | 5 pts | 3 comments | domain match | Show HN: Acme | https://acme.com"
+    assert lines[1] == "2 | 5 pts | 3 comments | official Show HN | Show HN: Acme | https://acme.com"
     assert lines[2].startswith("1 | 900 pts")
     assert "Low confidence" not in result.output
 
@@ -561,3 +571,68 @@ def test_match_hostile_post_text_is_cleaned_in_the_table_and_escaped_in_json(tmp
     assert esc not in table.output and "‮" not in table.output and "\x85" not in table.output
     assert esc not in as_json.output and "‮" not in as_json.output
     assert json.loads(as_json.output)["matches"][0]["job"]["company"] == hostile["company"]
+
+
+# --- URL-restricted domain query ---------------------------------------------------------------
+
+
+def test_showhn_with_domain_merges_the_url_search_and_ranks_its_story_first(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    route = show_hn_routes(
+        respx_mock,
+        [make_show_hit(1, "Show HN: Popular but not Acme", points=900, url="https://other.com")],
+        [make_show_hit(2, "Show HN: Acme launch", points=5, url="https://acme.com/launch")],
+    )
+
+    result = runner.invoke(app, ["showhn", "Acme", "--domain", "acme.com", "--json"])
+
+    data = json.loads(result.stdout)
+    assert result.exit_code == 0, result.output
+    assert [c["story_id"] for c in data["candidates"]] == [2, 1]
+    assert data["candidates"][0]["domain_match"] is True
+    assert (data["total_hits"], data["truncated"], data["low_confidence"]) == (2, False, False)
+    assert route.call_count == 2
+
+
+def test_showhn_without_domain_makes_exactly_one_request(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    route = show_hn_routes(respx_mock, [make_show_hit(1, "Show HN: Acme")], [])
+
+    result = runner.invoke(app, ["showhn", "Acme"])
+
+    assert result.exit_code == 0, result.output
+    assert route.call_count == 1
+
+
+def test_showhn_merged_total_is_a_lower_bound_and_reported_as_cut(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    show_hn_routes(
+        respx_mock,
+        [make_show_hit(i, "Show HN: x", points=i) for i in range(1, 9)],
+        [make_show_hit(99, "Show HN: Acme", url="https://acme.com")],
+        name_nb=813,
+    )
+
+    result = runner.invoke(app, ["showhn", "Acme", "--domain", "acme.com", "--json"])
+
+    data = json.loads(result.stdout)
+    assert result.exit_code == 0, result.output
+    assert (len(data["candidates"]), data["total_hits"], data["truncated"]) == (5, 813, True)
+    assert data["candidates"][0]["story_id"] == 99  # the domain match is kept even though 8 other hits outrank it by points
+
+
+@pytest.mark.parametrize("status", [403, 404, 429, 503])
+def test_showhn_domain_request_failure_still_prints_the_name_results(respx_mock, tmp_path, monkeypatch, status):
+    monkeypatch.chdir(tmp_path)
+
+    def respond(request):
+        if request.url.params.get("restrictSearchableAttributes"):
+            return httpx.Response(status, json={"message": "nope"})
+        return httpx.Response(200, json={"hits": [make_show_hit(1, "Show HN: Acme")], "nbHits": 1})
+
+    respx_mock.get(SHOW_HN_URL).mock(side_effect=respond)
+
+    result = runner.invoke(app, ["showhn", "Acme", "--domain", "acme.com"])
+
+    assert result.exit_code == 0, result.output
+    assert "Show HN candidates" in result.output

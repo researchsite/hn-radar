@@ -106,16 +106,13 @@ def _check_search_shape(data) -> None:
                 raise HNError(f"Unexpected Show HN hit: {key!r} is not a count: {hit!r}")
 
 
-def search_show_hn(company: str, *, cache_dir: Path | None = None, use_cache: bool = True) -> dict:
-    """Show HN stories matching `company`, in Algolia relevance order.
-
-    Returns {"total_hits": int, "hits": [{"story_id", "title", "points", "num_comments", "url"}]},
-    with at most SHOW_HN_PAGE hits. total_hits is Algolia's full count, so callers can tell when
-    the list is only part of the matches.
-    """
+def _show_hn_search(query: str, *, url_only: bool, cache_dir: Path | None, use_cache: bool) -> dict:
+    params = {"tags": "show_hn", "query": query, "hitsPerPage": str(SHOW_HN_PAGE)}
+    if url_only:
+        params["restrictSearchableAttributes"] = "url"  # undocumented for HN: it only widens the candidate pool
     data = _get_json(
         "search",
-        {"tags": "show_hn", "query": company, "hitsPerPage": str(SHOW_HN_PAGE)},
+        params,
         ttl=SHOW_HN_TTL,
         cache_dir=cache_dir,
         use_cache=use_cache,
@@ -133,6 +130,40 @@ def search_show_hn(company: str, *, cache_dir: Path | None = None, use_cache: bo
             }
         )
     return {"total_hits": data["nbHits"], "hits": hits}
+
+
+def search_show_hn(
+    company: str, *, domain: str | None = None, cache_dir: Path | None = None, use_cache: bool = True
+) -> dict:
+    """Show HN stories matching `company`, in Algolia relevance order.
+
+    With `domain`, a second search for stories whose URL contains it is merged in (de-duplicated by
+    story id, name-search copy first). If the URL search fails, the name-search results are returned.
+
+    Returns {"total_hits": int, "hits": [{"story_id", "title", "points", "num_comments", "url"}]},
+    with at most SHOW_HN_PAGE hits per request. total_hits lets callers tell when the list is only
+    part of the matches: with a domain it is exact when both responses held all their matches,
+    otherwise a lower bound (the larger Algolia count), because the two result sets can overlap.
+    """
+    if domain is not None and not domain.strip():
+        raise ValueError("domain must not be empty")  # checked before any request
+
+    found = _show_hn_search(company, url_only=False, cache_dir=cache_dir, use_cache=use_cache)
+    if domain is None:
+        return found
+
+    try:
+        by_url = _show_hn_search(domain.strip(), url_only=True, cache_dir=cache_dir, use_cache=use_cache)
+    except (HNError, httpx.HTTPError):
+        return found  # the URL search is an optimisation: keep the name results if it is unavailable
+    hits = list(found["hits"])
+    seen = {h["story_id"] for h in hits}
+    for hit in by_url["hits"]:
+        if hit["story_id"] not in seen:
+            seen.add(hit["story_id"])
+            hits.append(hit)
+    total_hits = max(found["total_hits"], by_url["total_hits"], len(hits))
+    return {"total_hits": total_hits, "hits": hits}
 
 
 def fetch_item(item_id: int, *, cache_dir: Path | None = None, use_cache: bool = True) -> dict:
