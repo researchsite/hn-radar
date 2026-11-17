@@ -84,17 +84,20 @@ def showhn(
     company: Annotated[str, typer.Argument(help="Company name to look up.")],
     domain: Annotated[
         str | None,
-        typer.Option(help="Company domain, e.g. acme.com. Story URL hosts are compared with it."),
+        typer.Option(help="Company domain, e.g. acme.com. Also searches stories whose URL contains it."),
     ] = None,
     json_output: Annotated[bool, typer.Option("--json", help="Print the result as JSON.")] = False,
 ) -> None:
-    """Find candidate Show HN stories for a company (at most 5, domain matches first)."""
+    """Find candidate Show HN stories for a company (at most 5, domain matches first).
+
+    A domain match means the story links to that domain, not that the company posted it.
+    """
     company = company.strip()
     try:
         if not company:
             raise ValueError("Company name must not be empty")
         wanted = normalize_domain(domain) if domain is not None else None  # validate before any network call
-        found = hn.search_show_hn(company)
+        found = hn.search_show_hn(company, domain=wanted)
         result = build_result(company, wanted, found["hits"], found["total_hits"])
     except ValueError as exc:
         typer.echo(f"Error: {exc}", err=True)
@@ -116,7 +119,8 @@ def showhn(
             f"{_terminal_safe(c.title)} | {_terminal_safe(c.url) or '-'}"
         )
     if result.truncated:
-        typer.echo(f"Showing {len(result.candidates)} of {result.total_hits} hits; refine the name or add --domain.")
+        advice = "refine the name" if domain is not None else "refine the name or add --domain"
+        typer.echo(f"Showing {len(result.candidates)} of {result.total_hits} hits; {advice}.")
     if result.low_confidence:
         typer.echo("Low confidence: no story URL matches the domain" + ("" if domain is not None else " (no --domain given)") + ".")
 
