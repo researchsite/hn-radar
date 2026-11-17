@@ -79,12 +79,13 @@
     }
   }
 
-  // When the jobs file was last written (its Last-Modified header, which is the day it was copied to the site after a crawl).
+  // When the jobs file was last updated on the server (its Last-Modified header). That is the day the file was deployed,
+  // which equals the crawl day only if it is deployed the same day, so the note says "updated", not "crawled".
   // Pages that have <p id="hn-crawled" hidden> get it filled; no header, no note.
   function showCrawled(r) {
     var node = document.getElementById('hn-crawled'), when = new Date(r.headers.get('Last-Modified') || '');
     if (!node || isNaN(when.getTime())) return;
-    node.textContent = 'Posts crawled from Hacker News: ' + when.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) + ' (date of the jobs file).';
+    node.textContent = 'Job posts from Hacker News, data last updated: ' + when.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) + '.';
     node.hidden = false;
   }
 

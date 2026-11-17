@@ -196,10 +196,12 @@
     return Math.min(j.stack.length, 6) + (j.role ? 1 : 0) + (j.location ? 1 : 0) + (j.remote !== null ? 1 : 0)
       + (j.url ? 1 : 0) + Math.min(3, Math.floor(j.text.length / 500));
   }
-  // the first line of a post repeats company, role and place, so the teaser is taken from what follows it
-  function teaser(text) {
+  // the first line of a post usually repeats company, role and place, so the teaser is taken from what follows it;
+  // a first line that does not name the company (for example an update or a closing notice) is real content and stays
+  function teaser(text, company) {
     var lines = text.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
-    var rest = (lines.length > 1 ? lines.slice(1).join(' ') : lines[0] || '').replace(/\s+/g, ' ');
+    var header = lines.length > 1 && (/\|/.test(lines[0]) || (company && lines[0].toLowerCase().indexOf(company.toLowerCase()) !== -1));
+    var rest = (header ? lines.slice(1).join(' ') : lines.join(' ')).replace(/\s+/g, ' ');
     return rest.length > TEASER ? rest.slice(0, TEASER).replace(/\s+\S*$/, '') + '\u2026' : rest;
   }
   function renderDirectory(jobs, notice, presetQuery) {
@@ -210,7 +212,7 @@
     var out = $('co-out'); out.textContent = '';
     if (notice) out.appendChild(noteBox(notice, true));
     var items = jobs.map(function (j) {
-      j.teaser = teaser(j.text);
+      j.teaser = teaser(j.text, j.company);
       j.hay = (j.company + ' ' + j.role + ' ' + j.location + ' ' + j.stack.join(' ')).toLowerCase();
       j.detail = detailScore(j);
       return j;
@@ -246,6 +248,9 @@
         j.stack.slice(0, 5).forEach(function (t) { chips.appendChild(el('li', {}, el('span', { className: 'rw-hn-tag' }, t))); });
         if (j.stack.length > 5) chips.appendChild(el('li', {}, el('span', { className: 'rw-hn-tag rw-hn-tag--soft' }, '+' + (j.stack.length - 5) + ' more')));
         li.appendChild(chips);
+      }
+      if (j.closed && H.hnItemUrl(j.closedId)) {
+        li.appendChild(el('p', { className: 'rw-hn-note rw-hn-note--warn' }, ['The poster\'s own reply says this job may be closed: ', H.extLink(H.hnItemUrl(j.closedId), 'HN comment ' + j.closedId, 'HN comment ' + j.closedId)]));
       }
       if (j.teaser) li.appendChild(el('p', { className: 'rw-hn-snippet' }, j.teaser));
       li.appendChild(el('p', { className: 'rw-hn-actions' }, [
