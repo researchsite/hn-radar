@@ -80,3 +80,14 @@ def make_show_hit(story_id, title, *, points=1, comments=0, url=None):
 def show_hn_route(respx_mock, hits, nb_hits=None):
     body = {"hits": hits, "nbHits": len(hits) if nb_hits is None else nb_hits}
     return respx_mock.get(SHOW_HN_URL).mock(return_value=httpx.Response(200, json=body))
+
+
+def show_hn_routes(respx_mock, by_name, by_url, *, name_nb=None, url_nb=None):
+    """One route that answers both Show HN searches: the URL-restricted one is told apart by its parameter."""
+
+    def respond(request):
+        restricted = request.url.params.get("restrictSearchableAttributes") == "url"
+        hits, nb = (by_url, url_nb) if restricted else (by_name, name_nb)
+        return httpx.Response(200, json={"hits": hits, "nbHits": len(hits) if nb is None else nb})
+
+    return respx_mock.get(SHOW_HN_URL).mock(side_effect=respond)
