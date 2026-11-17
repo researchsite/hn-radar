@@ -139,6 +139,41 @@ def _guess_company(first_line: str) -> str:
     return _clean_company(name + (suffix.group(0) if suffix else ""))
 
 
+# A person offering themselves, not a company hiring. Conservative on purpose: when unsure the post is kept,
+# because a missed profile is cheaper than a lost job. Two rules, both measured on a real thread:
+# 1) intro style: "I'm Name, a ... engineer" in the first two lines and no hiring cue anywhere in the post
+#    (a founder or recruiter also writes "I'm ...", e.g. "I'm an independent recruiter", "I'm looking to hire");
+# 2) resume style (the old "Who wants to be hired?" format): a "Willing to relocate:" line plus two more
+#    resume labels in the first lines.
+_REQUEST = r"(?!(?:looking|seeking|searching|hiring|need|want)\b)"  # "I'm looking for a developer" is a job
+_INTRO = re.compile(
+    r"^(?:(?:hi|hello)[,!.]?\s+)?(?:i['’]m|i am|my name is)\b(?:" + _REQUEST + r"[^.\n]){0,80}?\b(?:an?|the)\s+"
+    r"(?:" + _REQUEST + r"[\w&+/-]+\s+){0,4}?(?:engineer|developer|designer|scientist|analyst|architect)\b",
+    re.I,
+)
+_HIRE_CUE = re.compile(
+    r"\bhir(?:e|es|ing)\b|\brecruit\w*|\bwe(?:['’]re| are)\b|\bjoin (?:us|our)\b|"
+    r"\bour (?:team|company|product|startup)\b",
+    re.I,
+)
+_RELOCATE_LABEL = re.compile(r"^willing to relocate\s*:", re.I)
+_RESUME_LABELS = (
+    re.compile(r"^location\s*:", re.I),
+    re.compile(r"^technologies\s*:", re.I),
+    re.compile(r"^(?:r[eé]sum[eé]|cv|linkedin|email|contact info)\b[^:\n]{0,20}:", re.I),
+)
+
+
+def is_candidate_profile(text: str) -> bool:
+    """True when the plain-text post is a person's profile rather than a job. See the rules above."""
+    lines = text.split("\n")
+    head = lines[:8]
+    if any(_RELOCATE_LABEL.match(line) for line in head):
+        if sum(any(label.match(line) for line in head) for label in _RESUME_LABELS) >= 2:
+            return True
+    return any(_INTRO.match(line) for line in lines[:2]) and not _HIRE_CUE.search(text)
+
+
 def parse_comment(comment_id: int, html: str) -> Job:
     text = html_to_text(html)
     first_line = text.split("\n", 1)[0] if text else ""
