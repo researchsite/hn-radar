@@ -76,6 +76,16 @@ would overwrite the full committed file.
    Why: the author of a post controls that text, and an escape sequence in it can rewrite or hide
    what the user sees; a review found this in the `fetch-hiring` table.
 
+9. **A domain match is never presented as company ownership.** `domain_match` means a Show HN
+   story's URL host is the requested domain or a subdomain of it. It does not show that the company
+   posted the story: platform domains such as notion.so or supabase.com host other people's stories.
+   Labels, command help, docstrings, field comments and docs must say that the story "links to" the
+   domain, and must not call it "official", "the company's own" or "posted by the company".
+   Applies to: `src/hnradar/showhn.py`, `src/hnradar/cli.py`, `src/hnradar/models.py` and any text
+   that describes `showhn` output.
+   Why: a false "official story" claim reads as confident as a true one, and the outreach draft built
+   on it would repeat the claim to a person at that company.
+
 ## Quality gate (definition of done)
 
 A coding task is done only when all of these hold. Findings come from any reviewer (a person or an
