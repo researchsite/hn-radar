@@ -644,3 +644,34 @@ def test_showhn_help_says_a_domain_match_is_not_ownership():
 
     text = " ".join(result.output.split())
     assert "links to that domain, not that the company posted it" in text
+
+
+@pytest.mark.parametrize(
+    "args, expected",
+    [
+        (["showhn", "Supabase"], "refine the name or add --domain."),
+        (["showhn", "Supabase", "--domain", "supabase.com"], "refine the name."),
+    ],
+)
+def test_showhn_cut_hint_does_not_ask_for_a_domain_that_was_already_given(
+    respx_mock, tmp_path, monkeypatch, args, expected
+):
+    monkeypatch.chdir(tmp_path)
+    show_hn_routes(respx_mock, [make_show_hit(i, "Show HN: x", points=i) for i in range(1, 9)], [], name_nb=813)
+
+    result = runner.invoke(app, args)
+
+    assert result.exit_code == 0, result.output
+    hint = [line for line in result.output.splitlines() if line.startswith("Showing ")]
+    assert hint == [f"Showing 5 of 813 hits; {expected}"]
+    assert ("add --domain" in hint[0]) is ("--domain" not in args)
+
+
+def test_showhn_prints_no_cut_hint_when_nothing_was_cut(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    show_hn_routes(respx_mock, [make_show_hit(1, "Show HN: Acme", url="https://acme.com")], [])
+
+    result = runner.invoke(app, ["showhn", "Acme", "--domain", "acme.com"])
+
+    assert result.exit_code == 0, result.output
+    assert "Showing " not in result.output

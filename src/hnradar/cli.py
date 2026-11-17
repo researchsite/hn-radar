@@ -119,7 +119,8 @@ def showhn(
             f"{_terminal_safe(c.title)} | {_terminal_safe(c.url) or '-'}"
         )
     if result.truncated:
-        typer.echo(f"Showing {len(result.candidates)} of {result.total_hits} hits; refine the name or add --domain.")
+        advice = "refine the name" if domain is not None else "refine the name or add --domain"
+        typer.echo(f"Showing {len(result.candidates)} of {result.total_hits} hits; {advice}.")
     if result.low_confidence:
         typer.echo("Low confidence: no story URL matches the domain" + ("" if domain is not None else " (no --domain given)") + ".")
 
