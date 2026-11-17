@@ -85,6 +85,10 @@
     if (!d || typeof d !== 'object' || Array.isArray(d)) throw new Error('not an object');
     if (!int(d.total_hits) || d.total_hits < 0) throw new Error('total_hits');
     if (d.candidates !== undefined && !Array.isArray(d.candidates)) throw new Error('candidates');
+    // an entry without a valid story id and title means the file is broken, not that there are no stories
+    (d.candidates || []).forEach(function (c) {
+      if (!c || typeof c !== 'object' || !H.hnItemUrl(c.story_id) || typeof c.title !== 'string') throw new Error('candidate');
+    });
   }
   function renderShowHN(d, company, pulseHost) {
     var s = section('Show HN posts', 'Stories on Hacker News whose title mentions the company. A story that links to the company\'s own domain is a stronger match than a name match.');
@@ -200,7 +204,8 @@
   // a first line that does not name the company (for example an update or a closing notice) is real content and stays
   function teaser(text, company) {
     var lines = text.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
-    var header = lines.length > 1 && (/\|/.test(lines[0]) || (company && lines[0].toLowerCase().indexOf(company.toLowerCase()) !== -1));
+    var first = lines[0] || '', notice = /\b(update|edit|closed|no longer|filled|not hiring)\b/i.test(first);
+    var header = lines.length > 1 && !notice && ((first.match(/\|/g) || []).length >= 2 || (company && first.toLowerCase().indexOf(company.toLowerCase()) === 0));
     var rest = (header ? lines.slice(1).join(' ') : lines.join(' ')).replace(/\s+/g, ' ');
     return rest.length > TEASER ? rest.slice(0, TEASER).replace(/\s+\S*$/, '') + '\u2026' : rest;
   }

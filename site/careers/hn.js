@@ -85,7 +85,7 @@
   function showCrawled(r) {
     var node = document.getElementById('hn-crawled'), when = new Date(r.headers.get('Last-Modified') || '');
     if (!node || isNaN(when.getTime())) return;
-    node.textContent = 'Job posts from Hacker News, data last updated: ' + when.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) + '.';
+    node.textContent = 'Job posts from Hacker News, data last updated: ' + when.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) + '.';
     node.hidden = false;
   }
 
