@@ -26,8 +26,10 @@ Tests use made-up posts. This check runs the changed code on the real thread and
 2. Run `uv run pytest -q`. Record the pass count.
 3. Record the protected file: `uv run python -c "import hashlib,pathlib;p=pathlib.Path('data/jobs.json');print(hashlib.sha256(p.read_bytes()).hexdigest() if p.exists() else 'absent')"`.
 4. Fetch the live thread into a scratch file. Never use the default output path, never add `--limit`:
-   `uv run hnradar fetch-hiring --out data/cache/verify-<label>.json`
-   Save the printed lines (the "Wrote N jobs" line and any "Skipped" line) into your report.
+   `uv run hnradar fetch-hiring --out data/cache/verify-<label>.json > data/cache/verify-<label>-fetch.txt`
+   The command prints a table of post text, so the output goes to a file and you only read the two summary lines:
+   `Get-Content data/cache/verify-<label>-fetch.txt | Select-String "^Wrote|^Skipped"` (PowerShell) or `grep -E "^(Wrote|Skipped)" data/cache/verify-<label>-fetch.txt` (bash).
+   Put those lines into your report. Check the exit code of the fetch before reading the file.
 5. Compare. Use the real ids, list them after the flags:
    `uv run python .claude/skills/verify-jobs-parse/compare_jobs.py --baseline <baseline> --new data/cache/verify-<label>.json --thread <thread file> --must-exclude <ids> --must-keep <ids> --report data/cache/verify-<label>-report.json`
    `<thread file>` is the thread response the fetch just used: the newest `data/cache/items_*.json` (PowerShell: `Get-ChildItem data/cache/items_*.json | Sort-Object LastWriteTime -Descending | Select-Object -First 1`). No network call is needed. It lets the script tell an id the thread lost (comment deleted or flagged since the baseline) from an id the code dropped.
@@ -41,7 +43,7 @@ Tests use made-up posts. This check runs the changed code on the real thread and
 - Every removed id is either in must-exclude or listed under `gone from the thread`; `DROPPED BY THE CODE` is empty.
 
 ## Evidence to save
-Under `data/cache/` (git-ignored): `verify-<label>.json` (the fetched jobs), `verify-<label>-report.json` (written by the script). In your reply give: commit, pytest count, the printed fetch lines, the full compare output, the before and after hash, and your explanation of any unexplained ids. Do not print post text; ids and counts are enough.
+Under `data/cache/` (git-ignored): `verify-<label>.json` (the fetched jobs), `verify-<label>-fetch.txt` (what the fetch printed), `verify-<label>-report.json` (written by the script). In your reply give: commit, pytest count, the printed fetch lines, the full compare output, the before and after hash, and your explanation of any unexplained ids. Do not print post text; ids and counts are enough.
 
 ## Do not
 - Overwrite `data/jobs.json` or any tracked data file.
