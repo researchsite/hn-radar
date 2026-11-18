@@ -76,3 +76,49 @@ def test_bad_shapes_are_rejected(tmp_path, content):
     with pytest.raises(SystemExit) as exc:
         compare_jobs.main(["--baseline", str(bad), "--new", write_jobs(tmp_path / "n.json", [1])])
     assert str(exc.value).startswith("Error:")
+
+
+def write_thread(path, ids):
+    path.write_text(json.dumps({"id": 99, "children": [{"id": i} for i in ids]}), encoding="utf-8")
+    return str(path)
+
+
+def test_ids_the_thread_lost_are_not_blamed_on_the_code(tmp_path, capsys):
+    thread = write_thread(tmp_path / "t.json", [1, 4, 9])  # 3 left the thread, 9 is new and was kept
+
+    code = run(tmp_path, [1, 3, 4], [1, 4, 9], "--thread", thread)
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert "gone from the thread (not the code): [3]" in out
+    assert "DROPPED BY THE CODE, not in must-exclude: []" in out
+
+
+def test_a_post_the_code_dropped_without_being_listed_fails(tmp_path, capsys):
+    thread = write_thread(tmp_path / "t.json", [1, 2, 3])  # 3 is still in the thread but missing from the output
+
+    code = run(tmp_path, [1, 2, 3], [1, 2], "--thread", thread)
+
+    assert code == 1
+    assert "DROPPED BY THE CODE, not in must-exclude: [3]" in capsys.readouterr().out
+
+
+def test_a_listed_exclusion_is_not_an_unexpected_drop(tmp_path):
+    thread = write_thread(tmp_path / "t.json", [1, 2])
+
+    assert run(tmp_path, [1, 2], [1], "--thread", thread, "--must-exclude", "2") == 0
+
+
+def test_an_added_id_that_is_not_in_the_thread_fails(tmp_path):
+    thread = write_thread(tmp_path / "t.json", [1])
+
+    assert run(tmp_path, [1], [1, 7], "--thread", thread) == 1
+
+
+@pytest.mark.parametrize("content", ["[]", '{"children": "x"}', '{"children": [{"id": "a"}]}', "nope"])
+def test_bad_thread_file_is_rejected(tmp_path, content):
+    bad = tmp_path / "bad_thread.json"
+    bad.write_text(content, encoding="utf-8")
+    with pytest.raises(SystemExit) as exc:
+        run(tmp_path, [1], [1], "--thread", str(bad))
+    assert str(exc.value).startswith("Error:")
