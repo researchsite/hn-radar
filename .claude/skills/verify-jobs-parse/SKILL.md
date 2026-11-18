@@ -8,18 +8,18 @@ description: Verify a change to the HN Radar parser or fetch-hiring on the live 
 Tests use made-up posts. This check runs the changed code on the real thread and proves, with ids, what changed. A passing test suite is not a pass for this skill.
 
 ## Inputs (ask the user if any is missing)
-1. **label**: short name for the evidence files, for example `45` for ticket #45.
+1. **label**: short name for the evidence files, for example `45` for ticket #45. It must match `^[A-Za-z0-9][A-Za-z0-9-]{0,39}$` (letters, digits, dashes; no slash, dot, space or quote). Stop and ask for another label if it does not, or if `data/cache/verify-<label>.json` or `data/cache/verify-<label>-report.json` already exists: a reused label would overwrite earlier evidence.
 2. **baseline**: path to the jobs file from before the change, for example `data/jobs.json` or a saved copy. It must exist.
-3. **must-exclude ids**: comment_ids that the change must remove (may be empty if the ticket removes nothing).
-4. **must-keep ids**: real jobs that look similar and must still be present (may be empty).
+3. **must-exclude ids**: comment_ids that the change must remove (may be empty if the ticket removes nothing). Digits only; stop if an id is not a plain integer.
+4. **must-keep ids**: real jobs that look similar and must still be present (may be empty). Digits only.
 5. Context: the ticket or PR that says what should change.
 
 ## Stop and ask the user, do not guess, when
-- the baseline file does not exist, or it is not a JSON list;
+- the baseline file does not exist, or it is not a JSON list, or the compare output says `LOOKS LIKE ANOTHER THREAD` (the baseline is from another month: ask for the right one);
 - both id lists are empty and the ticket says posts must be dropped or kept (the check would prove nothing);
 - `uv run pytest -q` fails, or `fetch-hiring` exits non-zero (print the error, make no retry with other flags);
 - `data/jobs.json` changed during the run;
-- the compare output says `DROPPED BY THE CODE` or `added but not in the thread` with any id (the script exits 1). The thread keeps changing, so removed ids listed under `gone from the thread` are normal and need no decision.
+- the compare output says `DROPPED BY THE CODE` or `new jobs not in the thread` with any id, or lists duplicate ids (the script exits 1). Exit code 2 means bad input; show the `Error:` line and ask. The thread keeps changing, so removed ids listed under `gone from the thread` are normal and need no decision.
 
 ## Steps (run from the repository root, in this order)
 1. Record the context: `git rev-parse --short HEAD` and `git status --short`. Note the commit.
@@ -31,14 +31,14 @@ Tests use made-up posts. This check runs the changed code on the real thread and
    `Get-Content data/cache/verify-<label>-fetch.txt | Select-String "^Wrote|^Skipped"` (PowerShell) or `grep -E "^(Wrote|Skipped)" data/cache/verify-<label>-fetch.txt` (bash).
    Put those lines into your report. Check the exit code of the fetch before reading the file.
 5. Compare. Use the real ids, list them after the flags:
-   `uv run python .claude/skills/verify-jobs-parse/compare_jobs.py --baseline <baseline> --new data/cache/verify-<label>.json --thread <thread file> --must-exclude <ids> --must-keep <ids> --report data/cache/verify-<label>-report.json`
-   `<thread file>` is the thread response the fetch just used: the newest `data/cache/items_*.json` (PowerShell: `Get-ChildItem data/cache/items_*.json | Sort-Object LastWriteTime -Descending | Select-Object -First 1`). No network call is needed. It lets the script tell an id the thread lost (comment deleted or flagged since the baseline) from an id the code dropped.
+   `uv run python .claude/skills/verify-jobs-parse/compare_jobs.py --baseline "<baseline>" --new "data/cache/verify-<label>.json" --thread data/cache --must-exclude <ids> --must-keep <ids> --report "data/cache/verify-<label>-report.json"`
+   Always quote the paths. `--thread data/cache` lets the script find the cached thread response that contains every job of the new file (it prints `thread file: ...`; write that path into your report). No network call is needed. The thread file lets the script tell an id the thread lost (comment deleted, flagged or emptied since the baseline) from an id the code dropped, and it rejects a thread file or a baseline that belongs to another thread. Do not choose the thread file by its modification time.
    Exit code 0 and the word `PASS` mean the id checks passed. Exit 1 is a FAIL. Exit 2 means bad input: fix the input, do not edit the script.
 6. Repeat step 3 and confirm the hash is identical to the one before. If it differs, stop.
 7. If the output has a "Skipped N ..." line, say how N relates to the removed ids. They need not be equal (the thread can drop posts by itself); state the difference and the reason, or ask.
 
 ## Expected result
-- `PASS`, with every must-exclude id absent and every must-keep id present.
+- `PASS`, with every must-exclude id absent, every must-keep id present, no duplicate ids, and a baseline overlap of at least 0.5.
 - `data/jobs.json` hash unchanged.
 - Every removed id is either in must-exclude or listed under `gone from the thread`; `DROPPED BY THE CODE` is empty.
 
