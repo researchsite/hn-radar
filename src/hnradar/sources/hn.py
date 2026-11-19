@@ -40,12 +40,14 @@ def _get_json(
     digest = hashlib.sha256(json.dumps([path, params], sort_keys=True).encode()).hexdigest()[:16]
     cache_file = cache_dir / f"{path.replace('/', '_')}_{digest}.json"
 
-    if use_cache and cache_file.exists() and time.time() - cache_file.stat().st_mtime < ttl:
+    if use_cache:
         try:
-            cached = json.loads(cache_file.read_text(encoding="utf-8"))
-            if validate:
-                validate(cached)  # an entry of the wrong shape (old or hand-edited) is a miss, not a crash
-            return cached
+            # exists() and stat() can raise too (PermissionError on an inaccessible path): that is a miss as well
+            if cache_file.exists() and time.time() - cache_file.stat().st_mtime < ttl:
+                cached = json.loads(cache_file.read_text(encoding="utf-8"))
+                if validate:
+                    validate(cached)  # an entry of the wrong shape (old or hand-edited) is a miss, not a crash
+                return cached
         except (OSError, ValueError, HNError):
             pass  # unreadable, truncated or malformed entry: treat as a miss and refetch
 
@@ -88,7 +90,10 @@ def _warn_cache_not_written(exc: OSError) -> None:
     _cache_warning_shown = True
     kept = (" " if unicodedata.category(c) == "Cc" else c for c in str(exc) if unicodedata.category(c) != "Cf")
     reason = " ".join("".join(kept).split())[:MAX_WARNING_REASON]
-    print(f"Warning: could not write the HN cache ({type(exc).__name__}: {reason}); continuing without it.", file=sys.stderr)
+    try:
+        print(f"Warning: could not write the HN cache ({type(exc).__name__}: {reason}); continuing without it.", file=sys.stderr)
+    except (OSError, ValueError):  # stderr closed or its reader gone: the fetched data must still be returned
+        pass
 
 
 def find_latest_hiring_story(*, cache_dir: Path | None = None, use_cache: bool = True) -> dict:

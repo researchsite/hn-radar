@@ -294,3 +294,23 @@ def test_unwritable_hn_cache_warns_and_pulse_still_succeeds(story, monkeypatch, 
     assert result.exit_code == 0, result.output
     assert result.stderr.count("Warning: could not write the HN cache") == 1
     assert (tmp_path / "data" / "pulse" / f"{SHOW_ID}.json").exists()
+
+
+def test_an_inaccessible_hn_cache_entry_does_not_give_pulse_a_traceback(story, monkeypatch, tmp_path):
+    story(show_story(4))
+    use_client(monkeypatch, FakeClient(reply()))
+    cache = Path("data") / "cache"
+    cache.mkdir(parents=True)
+    real = Path.exists
+
+    def denied(self, *args, **kwargs):
+        if self.parent == cache:
+            raise PermissionError("denied")
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "exists", denied)
+
+    result = runner.invoke(app, ["pulse", str(SHOW_ID)])
+
+    assert result.exit_code == 0, result.output
+    assert not isinstance(result.exception, OSError)
