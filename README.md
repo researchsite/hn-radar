@@ -38,7 +38,8 @@ uv run hnradar fetch-hiring --json          # print JSON instead of a table (wri
 ```
 
 Run it once a month, or after a parser change, to refresh `data/jobs.json`. HN responses are cached in
-`data/cache/`.
+`data/cache/`. If the cache cannot be written, the command still finishes and prints one
+warning on stderr; a failed HN request is still an error.
 
 ### showhn
 

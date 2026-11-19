@@ -283,12 +283,34 @@ def test_new_pulse_replaces_the_old_one_completely(story, monkeypatch, tmp_path)
     assert json.loads(target.read_text(encoding="utf-8"))["story_id"] == SHOW_ID
 
 
-def test_unwritable_hn_cache_is_an_error_not_a_traceback(story, monkeypatch, tmp_path):
+def test_unwritable_hn_cache_warns_and_pulse_still_succeeds(story, monkeypatch, tmp_path):
     story(show_story(4))
     use_client(monkeypatch, FakeClient(reply()))
-    (tmp_path / "data").write_text("a file where the cache directory should be", encoding="utf-8")
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "cache").write_text("a file where the cache directory should be", encoding="utf-8")
 
     result = runner.invoke(app, ["pulse", str(SHOW_ID)])
 
-    assert result.exit_code == 1 and "Error:" in result.stderr
+    assert result.exit_code == 0, result.output
+    assert result.stderr.count("Warning: could not write the HN cache") == 1
+    assert (tmp_path / "data" / "pulse" / f"{SHOW_ID}.json").exists()
+
+
+def test_an_inaccessible_hn_cache_entry_does_not_give_pulse_a_traceback(story, monkeypatch, tmp_path):
+    story(show_story(4))
+    use_client(monkeypatch, FakeClient(reply()))
+    cache = Path("data") / "cache"
+    cache.mkdir(parents=True)
+    real = Path.exists
+
+    def denied(self, *args, **kwargs):
+        if self.parent == cache:
+            raise PermissionError("denied")
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "exists", denied)
+
+    result = runner.invoke(app, ["pulse", str(SHOW_ID)])
+
+    assert result.exit_code == 0, result.output
     assert not isinstance(result.exception, OSError)

@@ -285,7 +285,7 @@ def pulse(
         title = item.get("title") if isinstance(item.get("title"), str) else ""
         children = item.get("children") or []
         result = cluster(story_id, title, [c for c in children if not isinstance(c, dict) or c.get("text")], _model_client(model))
-    except (ValueError, PulseError, ollama.ModelError, hn.HNError, httpx.HTTPError, OSError) as exc:  # OSError: the HN cache can't be written
+    except (ValueError, PulseError, ollama.ModelError, hn.HNError, httpx.HTTPError) as exc:
         typer.echo(f"Error: {_terminal_safe(str(exc))}", err=True)
         raise typer.Exit(1) from exc
 

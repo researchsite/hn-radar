@@ -800,3 +800,41 @@ def test_showhn_ordinary_input_has_no_platform_notice(respx_mock, tmp_path, monk
 def test_showhn_help_mentions_the_platform_notice():
     text = " ".join(runner.invoke(app, ["showhn", "--help"]).output.split())
     assert "platform" in text.lower()
+
+
+def _blocked_cache(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "cache").write_text("a file where the cache directory should be", encoding="utf-8")
+
+
+def test_showhn_with_an_unwritable_cache_prints_its_result_and_one_warning(respx_mock, tmp_path, monkeypatch):
+    _blocked_cache(tmp_path, monkeypatch)
+    show_hn_route(respx_mock, [make_show_hit(7, "Show HN: Acme", url="https://acme.com/x")])
+
+    result = runner.invoke(app, ["showhn", "Acme", "--domain", "acme.com"])
+
+    assert result.exit_code == 0, result.output
+    assert "7 |" in result.stdout and "Warning" not in result.stdout
+    assert result.stderr.count("Warning: could not write the HN cache") == 1
+
+
+def test_fetch_hiring_with_an_unwritable_cache_still_writes_the_jobs(mock_hn, tmp_path, monkeypatch):
+    _blocked_cache(tmp_path, monkeypatch)
+
+    result = runner.invoke(app, ["fetch-hiring", "--out", str(tmp_path / "jobs.json")])
+
+    assert result.exit_code == 0, result.output
+    assert "Wrote 3 jobs" in result.stdout
+    assert result.stderr.count("Warning: could not write the HN cache") == 1
+    assert len(json.loads((tmp_path / "jobs.json").read_text(encoding="utf-8"))) == 3
+
+
+@pytest.mark.parametrize("status", [403, 404, 429, 500])
+def test_showhn_upstream_errors_still_exit_1_with_an_unwritable_cache(respx_mock, tmp_path, monkeypatch, status):
+    _blocked_cache(tmp_path, monkeypatch)
+    respx_mock.get(SHOW_HN_URL).mock(return_value=httpx.Response(status))
+
+    result = runner.invoke(app, ["showhn", "Acme"])
+
+    assert result.exit_code == 1 and "Error:" in result.stderr

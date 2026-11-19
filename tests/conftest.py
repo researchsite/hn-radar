@@ -91,3 +91,10 @@ def show_hn_routes(respx_mock, by_name, by_url, *, name_nb=None, url_nb=None):
         return httpx.Response(200, json={"hits": hits, "nbHits": len(hits) if nb is None else nb})
 
     return respx_mock.get(SHOW_HN_URL).mock(side_effect=respond)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_cache_warning(monkeypatch):
+    from hnradar.sources import hn
+
+    monkeypatch.setattr(hn, "_cache_warning_shown", False)  # the warning is once per process; each test is a new one
