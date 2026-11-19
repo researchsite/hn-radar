@@ -10,14 +10,17 @@ import httpx
 import typer
 
 from hnradar.closed import closing_reply_id
+from hnradar.draft.write import write_draft
 from hnradar.fingerprint import build_profile
 from hnradar.match import top_matches
 from hnradar.models import Job, MatchResult, Profile
 from hnradar.parse import is_candidate_profile, parse_comment
-from hnradar.pulse.cluster import MIN_COMMENTS, PulseError, cluster
-from hnradar.showhn import build_result, normalize_domain
+from hnradar.pulse.cluster import MIN_COMMENTS, PulseError, cluster, select_comments
+from hnradar.pulse.schema import PulseResult
+from hnradar.showhn import build_result, normalize_domain, url_domain
 from hnradar.sources import github, hn, ollama
 
+DRAFT_MATCHES = 10  # best matches tried, in order, until one has a Show HN with a cited bug
 app = typer.Typer(help="HN Radar", no_args_is_help=True)
 
 
@@ -195,14 +198,8 @@ def _profile_path(profiles_dir: Path, username: str) -> Path:
     return found[0] if found else exact
 
 
-@app.command("match")
-def match(
-    username: Annotated[str, typer.Argument(help="GitHub username with a profile from `hnradar fingerprint`.")],
-    jobs_file: Annotated[Path, typer.Option("--jobs", help="Jobs file from `hnradar fetch-hiring`.")] = Path("data/jobs.json"),
-    profiles_dir: Annotated[Path, typer.Option(help="Directory holding <user>.json.")] = Path("data/profiles"),
-    as_json: Annotated[bool, typer.Option("--json", help="Print the result as JSON instead of a table.")] = False,
-) -> None:
-    """Show the top 3 jobs for a user, scored deterministically from their profile."""
+def _load_profile_and_jobs(username: str, jobs_file: Path, profiles_dir: Path) -> tuple[Profile, list[Job]]:
+    """Shared by `match` and `draft`: the saved profile and jobs, or an `Error:` line and exit 1."""
     if not github.USERNAME_RE.fullmatch(username):  # also keeps the path inside the profiles dir
         typer.echo(f"Error: {username!r} is not a valid GitHub username", err=True)
         raise typer.Exit(1)
@@ -222,7 +219,18 @@ def match(
     if profile.username.lower() != username.lower():  # a copied or renamed profile would be shown under the wrong name
         typer.echo(f"Error: {profile_path} is the profile of {profile.username!r}, not {username!r}", err=True)
         raise typer.Exit(1)
+    return profile, jobs
 
+
+@app.command("match")
+def match(
+    username: Annotated[str, typer.Argument(help="GitHub username with a profile from `hnradar fingerprint`.")],
+    jobs_file: Annotated[Path, typer.Option("--jobs", help="Jobs file from `hnradar fetch-hiring`.")] = Path("data/jobs.json"),
+    profiles_dir: Annotated[Path, typer.Option(help="Directory holding <user>.json.")] = Path("data/profiles"),
+    as_json: Annotated[bool, typer.Option("--json", help="Print the result as JSON instead of a table.")] = False,
+) -> None:
+    """Show the top 3 jobs for a user, scored deterministically from their profile."""
+    profile, jobs = _load_profile_and_jobs(username, jobs_file, profiles_dir)
     matches = top_matches(profile, jobs)
     result = MatchResult(
         username=profile.username,
@@ -299,3 +307,97 @@ def pulse(
         for it in (i for i in result.items if i.kind == kind):
             ids = ", ".join(str(c) for c in it.comment_ids)
             typer.echo(f"{kind:<3} | {_terminal_safe(it.summary)} | comments {ids}")
+
+
+def _saved_pulse(pulse_dir: Path, story_id: int) -> PulseResult | None:
+    path = pulse_dir / f"{story_id}.json"
+    if not path.exists():
+        return None
+    try:
+        return PulseResult.model_validate_json(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:  # a saved pulse that cannot be read is not silently re-made
+        raise ValueError(f"could not read the saved pulse {path}: {type(exc).__name__}") from exc
+
+
+def _cited_bug(story_id: int, children: list[dict], pulse_dir: Path, client) -> tuple[str, list[dict]] | None:
+    """The first pulse bug whose cited comments are all in the thread, as (summary, [{"id", "text"}])."""
+    result = _saved_pulse(pulse_dir, story_id)
+    if result is None:
+        result = cluster(story_id, "", [c for c in children if not isinstance(c, dict) or c.get("text")], client)
+    if result is None:
+        return None
+    by_id = {c["id"]: c for c in select_comments(children)[0]}
+    for item in (i for i in result.items if i.kind == "bug"):
+        if all(cid in by_id for cid in item.comment_ids):
+            return item.summary, [by_id[cid] for cid in item.comment_ids]
+    return None
+
+
+@app.command("draft")
+def draft(
+    username: Annotated[str, typer.Argument(help="GitHub username with a profile from `hnradar fingerprint`.")],
+    model: Annotated[str, typer.Option(help="Ollama model that writes the draft.")] = ollama.DEFAULT_MODEL,
+    jobs_file: Annotated[Path, typer.Option("--jobs", help="Jobs file from `hnradar fetch-hiring`.")] = Path("data/jobs.json"),
+    profiles_dir: Annotated[Path, typer.Option(help="Directory holding <user>.json.")] = Path("data/profiles"),
+    pulse_dir: Annotated[Path, typer.Option(help="Directory holding saved pulses (`hnradar pulse`).")] = Path("data/pulse"),
+) -> None:
+    """Write a 5-line outreach note to the best-matched company, citing one user-reported problem.
+
+    Only a company with a Show HN that links to its own domain is used (a platform domain is skipped), and
+    the note says "a Show HN that links to ..." because the company may not have posted it. The cited
+    comments are printed under the note: read them before you send anything. Nothing is sent.
+    """
+    profile, jobs = _load_profile_and_jobs(username, jobs_file, profiles_dir)
+    skipped = []
+    try:
+        client = _model_client(model)
+        for m in top_matches(profile, jobs, limit=DRAFT_MATCHES):
+            company = m.job.company
+            repo = next((r for r in profile.notable_repos if any(x.kind == "repo" and x.evidence == r.name for x in m.reasons)), None)
+            domain = url_domain(m.job.url)
+            if repo is None or domain is None:
+                skipped.append(f"{company}: {'no matched repo' if repo is None else 'no domain in the job link'}")
+                continue
+            found = hn.search_show_hn(company, domain=domain)
+            result = build_result(company, domain, found["hits"], found["total_hits"])
+            story = next((c for c in result.candidates if c.domain_match), None)
+            if result.low_confidence or story is None:
+                skipped.append(f"{company}: {'platform domain' if result.platform_domain else 'no Show HN links to ' + domain}")
+                continue
+            item = hn.fetch_item(story.story_id)
+            if not isinstance(item, dict) or item.get("type") != "story" or not isinstance(item.get("children", []), list):
+                skipped.append(f"{company}: {story.story_id} is not a story")
+                continue
+            bug = _cited_bug(story.story_id, item.get("children") or [], pulse_dir, client)
+            if bug is None:
+                skipped.append(f"{company}: no cited bug in the Show HN comments")
+                continue
+            summary, cited = bug
+            drafted = write_draft(
+                username=profile.username, company=company, domain=domain, story_id=story.story_id,
+                repo={"name": repo.name, "language": repo.language, "description": repo.description},
+                problem=summary, cited=cited, client=client,
+            )
+            break
+        else:
+            drafted = None
+    except (ValueError, PulseError, ollama.ModelError, hn.HNError, httpx.HTTPError, OSError) as exc:
+        typer.echo(f"Error: {_terminal_safe(str(exc))}", err=True)
+        raise typer.Exit(1) from exc
+
+    if drafted is None:
+        typer.echo(f"No cited problem found for {_terminal_safe(profile.username)}. No draft written.")
+        for line in skipped:
+            typer.echo(f"- {_terminal_safe(line)}")
+        return
+
+    typer.echo(f"Draft for {_terminal_safe(drafted.company)} ({drafted.model}), using your repo {_terminal_safe(drafted.repo)}:")
+    typer.echo("")
+    for line in drafted.lines:
+        typer.echo(_terminal_safe(line.text))
+    typer.echo("")
+    typer.echo("Evidence (read it before you send anything; nothing is sent):")
+    typer.echo(f"repo {_terminal_safe(drafted.repo)} | {_terminal_safe(drafted.repo_language) or '-'} | {_terminal_safe(drafted.repo_description) or 'no description'}")
+    for e in drafted.evidence:
+        typer.echo(f"comment {e.comment_id} | {_terminal_safe(e.text)} | {e.url}")
+    typer.echo(f"Show HN: https://news.ycombinator.com/item?id={drafted.story_id} (links to {drafted.domain})")
