@@ -61,7 +61,7 @@ def select_comments(comments: list[dict]) -> tuple[list[dict], int]:
     return [{"id": cid, "text": text[:MAX_COMMENT_CHARS]} for cid, text in chosen], len(texts)
 
 
-def _problem(exc: ValidationError) -> str:
+def validation_reason(exc: ValidationError) -> str:
     """A short, input-free reason: the pydantic message would echo the model's (untrusted) text."""
     parts = []
     for e in exc.errors()[:3]:
@@ -94,7 +94,7 @@ def cluster(story_id: int, title: str, comments: list[dict], client: ModelClient
             reply = ModelReply.model_validate_json(raw)
             _check_ids(reply, known)
         except ValidationError as exc:
-            problem = _problem(exc)
+            problem = validation_reason(exc)
             continue
         except ValueError as exc:
             problem = str(exc)

@@ -59,6 +59,23 @@ def host_matches(url: str | None, domain: str) -> bool:
     return host == domain or host.endswith("." + domain)
 
 
+def url_domain(url: str | None) -> str | None:
+    """The bare host of an http(s) URL (a job post's link), or None when it has no usable host. Only parsed."""
+    if not isinstance(url, str) or not url or "\\" in url:
+        return None
+    try:
+        parsed = urlparse(url)
+        host = (parsed.hostname or "").lower().removesuffix(".")
+    except ValueError:
+        return None
+    if parsed.scheme not in ("http", "https"):
+        return None
+    try:
+        return normalize_domain(host)
+    except ValueError:
+        return None
+
+
 def build_result(company: str, domain: str | None, hits: list[dict], total_hits: int) -> ShowHNResult:
     """Domain matches first, then points (highest first), then newest story. Never silent about the cut."""
     wanted = normalize_domain(domain) if domain is not None else None
