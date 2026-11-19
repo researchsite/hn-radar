@@ -10,6 +10,23 @@ _LABEL = r"[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?"
 _DOMAIN_RE = re.compile(rf"{_LABEL}(\.{_LABEL})+")  # at least two labels, ASCII (punycode for IDNs)
 
 
+# Hosts that many unrelated people publish on: code hosts, blogs, page builders, job boards and application
+# forms, video and file hosts. A story that links to one of these says little about any one company
+# (rule 9). A subdomain of a listed host counts as listed, which also flags a company's own page on a
+# platform (acme.github.io): the safe side. Start list from the ticket (#38) plus the hosts real job posts
+# link to (measured on the November 2026 thread).
+PLATFORM_DOMAINS = frozenset(
+    {
+        "github.com", "github.io", "gitlab.com", "medium.com", "substack.com", "notion.so", "notion.site",
+        "docs.google.com", "drive.google.com", "forms.gle", "youtube.com", "youtu.be", "linkedin.com",
+        "twitter.com", "x.com", "arxiv.org", "ycombinator.com",
+        "vercel.app", "netlify.app", "pages.dev", "herokuapp.com",
+        "ashbyhq.com", "greenhouse.io", "grnh.se", "lever.co", "workable.com", "smartrecruiters.com",
+        "oraclecloud.com", "tally.so", "typeform.com",
+    }
+)
+
+
 def normalize_domain(domain: str) -> str:
     """A bare lowercase host such as acme.com. Raises ValueError for anything else (scheme, path,
     port, query, user info, empty or malformed labels)."""
@@ -17,6 +34,12 @@ def normalize_domain(domain: str) -> str:
     if not _DOMAIN_RE.fullmatch(value):
         raise ValueError(f"Expected a bare domain like acme.com, got {domain!r}")
     return value
+
+
+def is_platform_domain(domain: str) -> bool:
+    """True if `domain` is a listed platform host or a subdomain of one. Raises ValueError like normalize_domain."""
+    labels = normalize_domain(domain).split(".")
+    return any(".".join(labels[i:]) in PLATFORM_DOMAINS for i in range(len(labels) - 1))
 
 
 def host_matches(url: str | None, domain: str) -> bool:
@@ -45,11 +68,13 @@ def build_result(company: str, domain: str | None, hits: list[dict], total_hits:
     ]
     candidates.sort(key=lambda c: (not c.domain_match, -c.points, -c.story_id))
     kept = candidates[:MAX_CANDIDATES]
+    platform = wanted is not None and is_platform_domain(wanted)
     return ShowHNResult(
         query=company,
         domain=wanted,
         candidates=kept,
         total_hits=total_hits,
         truncated=total_hits > len(kept),
-        low_confidence=not any(c.domain_match for c in kept),
+        low_confidence=platform or not any(c.domain_match for c in kept),
+        platform_domain=platform,
     )

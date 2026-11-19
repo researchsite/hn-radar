@@ -47,7 +47,13 @@ uv run hnradar showhn Acme --domain acme.com   # story URLs on that domain rank 
 uv run hnradar showhn Acme --json
 ```
 
-Prints a "low confidence" note when no story URL matches the domain.
+Prints a "low confidence" note when no story URL matches the domain. It also flags a platform domain
+(github.com, notion.so, a job board, a form host): stories that link to it may belong to someone else, so
+the result has `platform_domain: true` and `low_confidence: true`.
+
+The check errs on the side of flagging. A company's own page on a platform (`acme.github.io`,
+`acme.notion.site`) is flagged, and so is a company that is itself a listed platform (`substack.com`). The
+list in `showhn.py` is a start: a platform that is not listed is treated as an ordinary domain.
 
 ### fingerprint
 
