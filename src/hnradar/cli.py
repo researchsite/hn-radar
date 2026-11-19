@@ -11,7 +11,7 @@ from hnradar.closed import closing_reply_id
 from hnradar.fingerprint import build_profile
 from hnradar.match import top_matches
 from hnradar.models import Job, MatchResult, Profile
-from hnradar.parse import parse_comment
+from hnradar.parse import is_candidate_profile, parse_comment
 from hnradar.showhn import build_result, normalize_domain
 from hnradar.sources import github, hn
 
@@ -43,8 +43,12 @@ def fetch_hiring(
     if limit is not None:
         comments = comments[:limit]
     jobs = []
+    skipped = 0
     for c in comments:
         job = parse_comment(int(c["id"]), c["text"])
+        if is_candidate_profile(job.raw_text):  # a person offering themselves, not a job
+            skipped += 1
+            continue
         closed_id = closing_reply_id(c)
         if closed_id is not None:
             job.closed, job.closed_comment_id = True, closed_id
@@ -56,12 +60,17 @@ def fetch_hiring(
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(records, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
+    skipped_note = f"Skipped {skipped} candidate {'profile' if skipped == 1 else 'profiles'}"
     if json_output:
         # ensure_ascii escapes every non-ASCII character (incl. C1 controls such as U+009B) on stdout.
         typer.echo(json.dumps(records, indent=2, ensure_ascii=True))
+        if skipped:
+            typer.echo(skipped_note, err=True)  # stderr keeps stdout valid JSON
         return
 
     typer.echo(f'Wrote {len(jobs)} jobs from "{_terminal_safe(story["title"])}" to {target}')
+    if skipped:
+        typer.echo(skipped_note)
     for j in jobs:
         typer.echo(f"{_terminal_safe(j.company)} | {_terminal_safe(j.role) or '-'} | {_remote_label(j.remote)}")
 
@@ -84,17 +93,20 @@ def showhn(
     company: Annotated[str, typer.Argument(help="Company name to look up.")],
     domain: Annotated[
         str | None,
-        typer.Option(help="Company domain, e.g. acme.com. Story URL hosts are compared with it."),
+        typer.Option(help="Company domain, e.g. acme.com. Also searches stories whose URL contains it."),
     ] = None,
     json_output: Annotated[bool, typer.Option("--json", help="Print the result as JSON.")] = False,
 ) -> None:
-    """Find candidate Show HN stories for a company (at most 5, domain matches first)."""
+    """Find candidate Show HN stories for a company (at most 5, domain matches first).
+
+    A domain match means the story links to that domain, not that the company posted it.
+    """
     company = company.strip()
     try:
         if not company:
             raise ValueError("Company name must not be empty")
         wanted = normalize_domain(domain) if domain is not None else None  # validate before any network call
-        found = hn.search_show_hn(company)
+        found = hn.search_show_hn(company, domain=wanted)
         result = build_result(company, wanted, found["hits"], found["total_hits"])
     except ValueError as exc:
         typer.echo(f"Error: {exc}", err=True)
@@ -116,7 +128,8 @@ def showhn(
             f"{_terminal_safe(c.title)} | {_terminal_safe(c.url) or '-'}"
         )
     if result.truncated:
-        typer.echo(f"Showing {len(result.candidates)} of {result.total_hits} hits; refine the name or add --domain.")
+        advice = "refine the name" if domain is not None else "refine the name or add --domain"
+        typer.echo(f"Showing {len(result.candidates)} of {result.total_hits} hits; {advice}.")
     if result.low_confidence:
         typer.echo("Low confidence: no story URL matches the domain" + ("" if domain is not None else " (no --domain given)") + ".")
 
