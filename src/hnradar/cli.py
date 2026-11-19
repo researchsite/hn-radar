@@ -12,8 +12,9 @@ from hnradar.fingerprint import build_profile
 from hnradar.match import top_matches
 from hnradar.models import Job, MatchResult, Profile
 from hnradar.parse import is_candidate_profile, parse_comment
+from hnradar.pulse.cluster import MIN_COMMENTS, PulseError, cluster
 from hnradar.showhn import build_result, normalize_domain
-from hnradar.sources import github, hn
+from hnradar.sources import github, hn, ollama
 
 app = typer.Typer(help="HN Radar", no_args_is_help=True)
 
@@ -235,3 +236,46 @@ def match(
             typer.echo(f"   - {_terminal_safe(reason.text)}")
         if j.url:
             typer.echo(f"   {_terminal_safe(j.url)}")
+
+
+def _model_client(model: str) -> ollama.OllamaClient:
+    return ollama.OllamaClient(model)
+
+
+@app.command("pulse")
+def pulse(
+    story_id: Annotated[int, typer.Argument(min=1, help="HN id of a Show HN story (see `hnradar showhn`).")],
+    model: Annotated[str, typer.Option(help="Ollama model that groups the comments.")] = ollama.DEFAULT_MODEL,
+    out: Annotated[Path | None, typer.Option(help="Output file (default data/pulse/STORY_ID.json).")] = None,
+) -> None:
+    """Group a story's top-level comments into pros, bugs and asks; every item cites its comment ids."""
+    try:
+        item = hn.fetch_item(story_id)
+        if not isinstance(item, dict) or item.get("type") != "story" or not isinstance(item.get("children", []), list):
+            raise ValueError(f"{story_id} is not a story")
+        title = item.get("title") if isinstance(item.get("title"), str) else ""
+        children = item.get("children") or []
+        result = cluster(story_id, title, [c for c in children if not isinstance(c, dict) or c.get("text")], _model_client(model))
+    except (ValueError, PulseError, ollama.ModelError, hn.HNError, httpx.HTTPError) as exc:
+        typer.echo(f"Error: {_terminal_safe(str(exc))}", err=True)
+        raise typer.Exit(1) from exc
+
+    if result is None:
+        typer.echo(f"Not enough signal: fewer than {MIN_COMMENTS} comments with text. Nothing written.")
+        return
+
+    target = out if out is not None else Path("data/pulse") / f"{story_id}.json"
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
+    except OSError as exc:  # out is a directory, read-only, or its parent is a file
+        typer.echo(f"Error: could not write {target}: {_terminal_safe(str(exc))}", err=True)
+        raise typer.Exit(1) from exc
+
+    typer.echo(f'Pulse for "{_terminal_safe(result.title)}" ({result.model}): {len(result.items)} items, written to {target}')
+    if result.comments_used < result.comments_total:
+        typer.echo(f"Used {result.comments_used} of {result.comments_total} comments (longest first); the rest were not sent.")
+    for kind in ("bug", "ask", "pro"):
+        for it in (i for i in result.items if i.kind == kind):
+            ids = ", ".join(str(c) for c in it.comment_ids)
+            typer.echo(f"{kind:<3} | {_terminal_safe(it.summary)} | comments {ids}")
