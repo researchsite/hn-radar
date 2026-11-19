@@ -43,7 +43,7 @@ def test_server_not_running_is_a_clear_error(respx_mock):
         OllamaClient().complete("s", "u", {})
 
 
-@pytest.mark.parametrize("status", [404, 429, 500])
+@pytest.mark.parametrize("status", [403, 404, 429, 500])
 def test_http_error_is_a_clear_error_with_ollamas_reason(respx_mock, status):
     respx_mock.post(CHAT_URL).mock(return_value=httpx.Response(status, json={"error": "model not found"}))
     with pytest.raises(ModelError, match=f"HTTP {status} for model qwen2.5:7b: model not found"):

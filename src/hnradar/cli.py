@@ -1,4 +1,6 @@
 import json
+import os
+import tempfile
 import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
@@ -238,6 +240,19 @@ def match(
             typer.echo(f"   {_terminal_safe(j.url)}")
 
 
+def _write_text_atomic(path: Path, text: str) -> None:
+    """Write to a temp file, then rename, so a failed write never destroys a saved result."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.name, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as tmp_file:
+            tmp_file.write(text)
+        os.replace(tmp_name, path)
+    except BaseException:
+        Path(tmp_name).unlink(missing_ok=True)
+        raise
+
+
 def _model_client(model: str) -> ollama.OllamaClient:
     return ollama.OllamaClient(model)
 
@@ -256,7 +271,7 @@ def pulse(
         title = item.get("title") if isinstance(item.get("title"), str) else ""
         children = item.get("children") or []
         result = cluster(story_id, title, [c for c in children if not isinstance(c, dict) or c.get("text")], _model_client(model))
-    except (ValueError, PulseError, ollama.ModelError, hn.HNError, httpx.HTTPError) as exc:
+    except (ValueError, PulseError, ollama.ModelError, hn.HNError, httpx.HTTPError, OSError) as exc:  # OSError: the HN cache can't be written
         typer.echo(f"Error: {_terminal_safe(str(exc))}", err=True)
         raise typer.Exit(1) from exc
 
@@ -266,8 +281,7 @@ def pulse(
 
     target = out if out is not None else Path("data/pulse") / f"{story_id}.json"
     try:
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        _write_text_atomic(target, result.model_dump_json(indent=2) + "\n")
     except OSError as exc:  # out is a directory, read-only, or its parent is a file
         typer.echo(f"Error: could not write {target}: {_terminal_safe(str(exc))}", err=True)
         raise typer.Exit(1) from exc

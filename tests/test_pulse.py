@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 
@@ -120,6 +121,23 @@ def test_valid_first_reply_is_not_retried():
     client = FakeClient(reply(item()))
     cluster(7, "t", thread(4), client)
     assert len(client.prompts) == 1
+
+
+def test_summary_of_exactly_500_characters_is_valid_and_501_is_not():
+    assert len(cluster(7, "t", thread(4), FakeClient(reply(item(summary="x" * 500)))).items) == 1
+    too_long = reply(item(summary="x" * 501))
+    with pytest.raises(PulseError):
+        cluster(7, "t", thread(4), FakeClient(too_long, too_long))
+
+
+def test_recorded_thread_is_selected_and_cited_by_its_real_ids():
+    recorded = json.loads((Path(__file__).parent / "fixtures" / "show_hn_30100077.json").read_text(encoding="utf-8"))
+    ids = [c["id"] for c in recorded["children"]]
+
+    result = cluster(recorded["id"], recorded["title"], recorded["children"], FakeClient(reply(item(ids=[ids[0], ids[-1]]))))
+
+    assert (result.comments_used, result.comments_total) == (len(ids), len(ids))
+    assert result.items[0].comment_ids == [ids[0], ids[-1]]
 
 
 # --- a looping model: valid shape, useless content ---------------------------------------------------------------

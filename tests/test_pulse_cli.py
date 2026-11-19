@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import httpx
 import pytest
@@ -170,7 +171,7 @@ def test_end_to_end_through_the_ollama_http_api(story, respx_mock, tmp_path):
     assert (tmp_path / "data" / "pulse" / f"{SHOW_ID}.json").exists()
 
 
-@pytest.mark.parametrize("status", [404, 429, 500])
+@pytest.mark.parametrize("status", [403, 404, 429, 500])
 def test_upstream_hn_error_is_exit_1(story, status):
     story({"error": "x"}, status=status)
     assert runner.invoke(app, ["pulse", str(SHOW_ID)]).exit_code == 1
@@ -229,3 +230,65 @@ def test_children_that_is_not_a_list_is_an_error(story):
     story({"id": SHOW_ID, "type": "story", "title": "t", "children": "oops"})
     result = runner.invoke(app, ["pulse", str(SHOW_ID)])
     assert result.exit_code == 1 and "is not a story" in result.stderr
+
+
+FIXTURE = Path(__file__).parent / "fixtures" / "show_hn_30100077.json"  # a trimmed real Algolia item, authors removed
+
+
+def test_recorded_hn_item_goes_through_the_whole_command(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    recorded = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    respx_mock.get("https://hn.algolia.com/api/v1/items/30100077").mock(return_value=httpx.Response(200, json=recorded))
+    ids = [c["id"] for c in recorded["children"]]
+    client = use_client(monkeypatch, FakeClient(reply(summary="Asks about Heroku", ids=[ids[1], ids[3]], kind="ask")))
+
+    result = runner.invoke(app, ["pulse", "30100077"])
+
+    assert result.exit_code == 0, result.output
+    assert f"ask | Asks about Heroku | comments {ids[1]}, {ids[3]}" in result.output
+    saved = json.loads((tmp_path / "data" / "pulse" / "30100077.json").read_text(encoding="utf-8"))
+    assert saved["title"] == recorded["title"] and saved["comments_total"] == len(ids)
+    assert client.calls == 1
+
+
+def test_failed_write_keeps_the_previous_pulse(story, monkeypatch, tmp_path):
+    story(show_story(4))
+    use_client(monkeypatch, FakeClient(reply()))
+    target = tmp_path / "pulse.json"
+    target.write_text("previous result", encoding="utf-8")
+    real_replace = cli.os.replace
+
+    def replace(src, dst):
+        if Path(dst) == target:  # only the pulse file; the HN cache write must still work
+            raise OSError("disk full")
+        real_replace(src, dst)
+
+    monkeypatch.setattr(cli.os, "replace", replace)
+
+    result = runner.invoke(app, ["pulse", str(SHOW_ID), "--out", str(target)])
+
+    assert result.exit_code == 1 and "could not write" in result.stderr
+    assert target.read_text(encoding="utf-8") == "previous result"
+    assert [p.name for p in tmp_path.iterdir() if p.name.endswith(".tmp")] == []
+
+
+def test_new_pulse_replaces_the_old_one_completely(story, monkeypatch, tmp_path):
+    story(show_story(4))
+    use_client(monkeypatch, FakeClient(reply()))
+    target = tmp_path / "pulse.json"
+    target.write_text("x" * 100_000, encoding="utf-8")
+
+    assert runner.invoke(app, ["pulse", str(SHOW_ID), "--out", str(target)]).exit_code == 0
+
+    assert json.loads(target.read_text(encoding="utf-8"))["story_id"] == SHOW_ID
+
+
+def test_unwritable_hn_cache_is_an_error_not_a_traceback(story, monkeypatch, tmp_path):
+    story(show_story(4))
+    use_client(monkeypatch, FakeClient(reply()))
+    (tmp_path / "data").write_text("a file where the cache directory should be", encoding="utf-8")
+
+    result = runner.invoke(app, ["pulse", str(SHOW_ID)])
+
+    assert result.exit_code == 1 and "Error:" in result.stderr
+    assert not isinstance(result.exception, OSError)
