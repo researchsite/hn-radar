@@ -103,6 +103,7 @@ def showhn(
     """Find candidate Show HN stories for a company (at most 5, domain matches first).
 
     A domain match means the story links to that domain, not that the company posted it.
+    A platform domain (github.com, a job board, ...) is flagged as low confidence.
     """
     company = company.strip()
     try:
@@ -133,7 +134,12 @@ def showhn(
     if result.truncated:
         advice = "refine the name" if domain is not None else "refine the name or add --domain"
         typer.echo(f"Showing {len(result.candidates)} of {result.total_hits} hits; {advice}.")
-    if result.low_confidence:
+    if result.platform_domain:
+        typer.echo(
+            "Low confidence: platform domain. A story that links to it may belong to someone else, "
+            "so a match does not show that the company posted it."
+        )
+    if result.low_confidence and not any(c.domain_match for c in result.candidates):
         typer.echo("Low confidence: no story URL matches the domain" + ("" if domain is not None else " (no --domain given)") + ".")
 
 

@@ -1,6 +1,6 @@
 import pytest
 
-from hnradar.showhn import MAX_CANDIDATES, build_result, host_matches, normalize_domain
+from hnradar.showhn import MAX_CANDIDATES, PLATFORM_DOMAINS, build_result, host_matches, is_platform_domain, normalize_domain
 
 
 def hit(story_id, *, points=1, url=None, title="Show HN: thing"):
@@ -120,3 +120,78 @@ def test_zero_hits_is_an_empty_low_confidence_result():
 def test_bad_domain_raises_before_ranking():
     with pytest.raises(ValueError):
         build_result("Acme", "https://acme.com", [hit(1)], total_hits=1)
+
+
+@pytest.mark.parametrize(
+    "domain",
+    [
+        "notion.so", "github.com", "medium.com", "arxiv.org", "ycombinator.com",  # exact
+        "team.notion.so", "jobs.ashbyhq.com", "gist.github.com", "acme.github.io",  # subdomain of a listed host
+        "a.b.c.herokuapp.com",
+        "NOTION.SO", "www.github.com", "  Jobs.Lever.co ",  # case, www. and spaces are normalised
+        "x.com", "youtu.be", "grnh.se", "forms.gle",
+    ],
+)
+def test_platform_domains_are_flagged(domain):
+    assert is_platform_domain(domain) is True
+
+
+@pytest.mark.parametrize(
+    "domain",
+    [
+        "supabase.com", "posthog.com", "fly.io", "openrent.co.uk",  # ordinary companies
+        "mynotion.so", "notnotion.so", "notion.so.evil.com", "github.com.evil.io",  # look-alikes
+        "box.com", "max.com", "linkedin.com.au", "githubusercontent.org",  # suffix without a dot boundary
+        "so", "com", "io",  # a bare TLD is never a platform
+    ],
+)
+def test_ordinary_domains_and_lookalikes_are_not_platforms(domain):
+    if "." not in domain:
+        with pytest.raises(ValueError):  # not a valid domain at all: rejected, same as before
+            is_platform_domain(domain)
+    else:
+        assert is_platform_domain(domain) is False
+
+
+@pytest.mark.parametrize("raw", ["", "   ", "https://github.com", "github.com/acme", "git hub.com", "a..com"])
+def test_invalid_domain_is_rejected_not_treated_as_platform(raw):
+    with pytest.raises(ValueError):
+        is_platform_domain(raw)
+
+
+def test_every_listed_platform_is_a_normalised_domain():
+    # a typo ("Github.com", "www.x.com", a path) would silently never match
+    assert PLATFORM_DOMAINS
+    assert all(normalize_domain(d) == d for d in PLATFORM_DOMAINS)
+
+
+def test_platform_domain_is_low_confidence_even_when_a_story_links_to_it():
+    result = build_result("Notion", "notion.so", [hit(1, points=9, url="https://notion.so/blog/x")], 1)
+
+    assert result.candidates[0].domain_match is True  # still shown: the person decides
+    assert result.platform_domain is True
+    assert result.low_confidence is True
+
+
+def test_platform_subdomain_is_flagged_too():
+    assert build_result("Acme", "acme.github.io", [hit(1, url="https://acme.github.io/")], 1).platform_domain is True
+
+
+def test_ordinary_domain_is_unchanged():
+    result = build_result("Supabase", "supabase.com", [hit(1, url="https://supabase.com/launch")], 1)
+
+    assert result.platform_domain is False
+    assert result.low_confidence is False
+
+
+def test_no_domain_is_not_a_platform_domain():
+    result = build_result("Acme", None, [hit(1, url="https://github.com/acme")], 1)
+
+    assert result.platform_domain is False
+    assert result.low_confidence is True  # unchanged: no domain given
+
+
+def test_platform_domain_with_no_hits_is_still_flagged():
+    result = build_result("Notion", "www.NOTION.so", [], 0)
+
+    assert (result.domain, result.platform_domain, result.low_confidence) == ("notion.so", True, True)
