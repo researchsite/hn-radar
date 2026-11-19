@@ -8,10 +8,11 @@ from hnradar.draft.schema import DraftResult, Evidence, ModelDraft
 from hnradar.pulse.cluster import ATTEMPTS, ModelClient, PulseError, validation_reason
 
 MAX_EVIDENCE_CHARS = 300
+CLAIM_LINE = 1  # index of the line that states what users reported (line 2)
 HN_ITEM_URL = "https://news.ycombinator.com/item?id="
 
 # Rule 9: a story that links to a company's domain is not shown to be the company's own.
-_FORBIDDEN = ("your show hn", "their show hn", "you posted", "you launched", "you built")
+_FORBIDDEN = ("your show hn", "their show hn", "you posted", "you launched", "you built", "posted the show hn", "launched the show hn")
 
 SYSTEM_PROMPT = (
     "You write a short outreach note, in exactly five lines, from a developer to a company they could work for. "
@@ -30,13 +31,15 @@ SYSTEM_PROMPT = (
 )
 
 
-def _check(draft: ModelDraft, known: set[int], repo: str) -> None:
+def _check(draft: ModelDraft, known: set[int], repo: str, domain: str) -> None:
     ids = {cid for line in draft.lines for cid in line.comment_ids}
     unknown = sorted(ids - known)
     if unknown:
         raise ValueError(f"comment_ids not in the cited comments: {unknown}")
-    if not ids:
-        raise ValueError("no line cites a comment")
+    if not draft.lines[CLAIM_LINE].comment_ids:  # the line that says what users reported must carry its citation
+        raise ValueError(f"line {CLAIM_LINE + 1}, which states what users reported, cites no comment")
+    if f"a show hn that links to {domain}" not in draft.lines[CLAIM_LINE].text.lower():
+        raise ValueError(f"line {CLAIM_LINE + 1} must say 'A Show HN that links to {domain}'")
     text = " ".join(line.text for line in draft.lines).lower()
     if repo.lower() not in text:
         raise ValueError(f"the draft does not name the repo {repo}")
@@ -75,7 +78,7 @@ def write_draft(
         raw = client.complete(SYSTEM_PROMPT, prompt, schema)
         try:
             draft = ModelDraft.model_validate_json(raw)
-            _check(draft, known, repo["name"])
+            _check(draft, known, repo["name"], domain)
         except ValidationError as exc:
             reason = validation_reason(exc)
             continue

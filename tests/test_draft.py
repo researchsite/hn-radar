@@ -77,7 +77,11 @@ def test_the_comments_reach_the_model_as_json_data():
         (lambda ls: ls + [line("extra")], "at most 5"),  # one line over
         (lambda ls: [line("x" * (MAX_LINE_CHARS + 1))] + ls[1:], "at most"),  # exact limit + 1
         (lambda ls: [line("", [])] + ls[1:], "at least 1"),
-        (lambda ls: [line(l["text"]) for l in ls], "no line cites"),  # no citation anywhere
+        (lambda ls: [line(l["text"]) for l in ls], "cites no comment"),  # no citation anywhere
+        (lambda ls: [line(ls[0]["text"], [11]), line(ls[1]["text"]), *ls[2:]], "cites no comment"),  # cited on the wrong line
+        (lambda ls: [ls[0], line("Acme posted a Show HN about a crash, fastq.", [11]), *ls[2:]], "must say"),
+        (lambda ls: [ls[0], line("A Show HN that links to other.com crashed, fastq.", [11]), *ls[2:]], "must say"),
+        (lambda ls: [*ls[:3], line("Acme posted the Show HN.", [11]), ls[4]], "posted the show hn"),
         (lambda ls: [ls[0], line(ls[1]["text"], [11, 999]), *ls[2:]], "not in the cited"),
         (lambda ls: [*ls[:2], line("My code could help."), *ls[3:]], "does not name the repo"),
         (lambda ls: [line("Loved your Show HN!"), *ls[1:]], "your show hn"),
@@ -96,7 +100,7 @@ def test_one_retry_recovers_and_the_reason_is_sent_back():
     bad = [line(l["text"]) for l in good_lines()]
     result, client = draft(bad, good_lines())
     assert result.lines[1].comment_ids == [11, 12]
-    assert "rejected (no line cites a comment)" in client.prompts[1]
+    assert "rejected (line 2, which states what users reported, cites no comment)" in client.prompts[1]
 
 
 def test_not_json_is_rejected_without_echoing_it():

@@ -86,13 +86,15 @@ uv run hnradar draft octo                          # needs a profile and data/jo
 uv run hnradar draft octo --model qwen2.5:7b --pulse-dir data/pulse
 ```
 
-Tries the 10 best matches in order. A match is used only if its job link has a domain that is not a platform
+Tries the 10 best matches in order, and prints which line cites which comment. A match is used only if its job link has a domain that is not a platform
 host, a Show HN links to that domain, and the thread has a `pulse` "bug" whose cited comments are all in the
 thread. If none qualifies it prints `No cited problem found` with the reason per company and writes no draft
 (exit 0). The note says "a Show HN that links to ..." because a link does not show the company posted it.
 Under the note it prints the repo description, each cited comment (cleaned, cut to 300 characters) and its HN
 link. Read them before you send anything: a small model can say more about the repo than its description
-states. Nothing is sent. A careers subdomain (`jobs.acme.com`) is searched as given and may find no story.
+states. Nothing is sent. A careers subdomain (`jobs.acme.com`) is searched as given and may find no story. A company's own page on a
+platform (`acme.github.io`) and a company that is itself a listed platform are skipped on purpose: the safe
+side, not a solved case. If the 10 best matches give no draft, it says lower-ranked matches were not checked.
 
 ## Typical session
 

@@ -118,6 +118,7 @@ def test_draft_prints_five_lines_and_the_cited_evidence(env):
     start = out.index("Hello Acme, I am octo.")
     assert out[start + 4] == "Could we talk for ten minutes?"
     assert "repo fastq | Python | A job queue" in result.output
+    assert "line 2 cites comment 1000" in result.output
     assert "comment 1000 | Comment 0 about it | https://news.ycombinator.com/item?id=1000" in result.output
     assert f"Show HN: https://news.ycombinator.com/item?id={STORY_ID} (links to acme.com)" in result.output
     assert "your Show HN" not in result.output
@@ -247,7 +248,7 @@ def test_a_draft_that_calls_the_show_hn_theirs_is_refused(env):
     assert result.exit_code == 1 and "Draft for" not in result.output
 
 
-@pytest.mark.parametrize("status", [403, 429, 500])
+@pytest.mark.parametrize("status", [403, 404, 429, 500])
 def test_hn_errors_exit_1(env, status):
     env.write(saved_pulse=saved())
     env.hn(search_status=status)
@@ -312,3 +313,30 @@ def test_only_the_ten_best_matches_are_tried(env, platform_jobs, drafted):
 
     assert result.exit_code == 0, result.output
     assert ("Draft for Acme" in result.output) is drafted
+    # rule 6: when the search stopped at 10 without a draft, the output says so
+    assert ("Only the 10 best matches were checked" in result.output) is (not drafted)
+
+
+def test_a_platform_job_is_skipped_before_any_request_so_a_failing_search_cannot_stop_the_rest(env, respx_mock):
+    env.write(jobs=[job("Gh", "https://github.com/x")])
+    env.hn(search_status=500)
+    env.client()
+
+    result = runner.invoke(app, ["draft", "octo"])
+
+    assert result.exit_code == 0, result.output
+    assert "Gh: platform domain (github.com); a story that links to it may belong to someone else" in result.output
+    assert not any(call.request.url.path.endswith("/search") for call in respx_mock.calls)
+
+
+def test_a_saved_pulse_for_another_story_is_refused(env):
+    other = json.loads(saved())
+    other["story_id"] = 999
+    env.write(saved_pulse=json.dumps(other))
+    env.hn()
+    client = env.client()
+
+    result = runner.invoke(app, ["draft", "octo"])
+
+    assert result.exit_code == 1 and "is for story 999, not 4242" in result.output
+    assert "Draft for" not in result.output and client.calls == 0

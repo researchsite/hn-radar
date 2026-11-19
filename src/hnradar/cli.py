@@ -17,7 +17,7 @@ from hnradar.models import Job, MatchResult, Profile
 from hnradar.parse import is_candidate_profile, parse_comment
 from hnradar.pulse.cluster import MIN_COMMENTS, PulseError, cluster, select_comments
 from hnradar.pulse.schema import PulseResult
-from hnradar.showhn import build_result, normalize_domain, url_domain
+from hnradar.showhn import build_result, is_platform_domain, normalize_domain, url_domain
 from hnradar.sources import github, hn, ollama
 
 DRAFT_MATCHES = 10  # best matches tried, in order, until one has a Show HN with a cited bug
@@ -322,6 +322,8 @@ def _saved_pulse(pulse_dir: Path, story_id: int) -> PulseResult | None:
 def _cited_bug(story_id: int, children: list[dict], pulse_dir: Path, client) -> tuple[str, list[dict]] | None:
     """The first pulse bug whose cited comments are all in the thread, as (summary, [{"id", "text"}])."""
     result = _saved_pulse(pulse_dir, story_id)
+    if result is not None and result.story_id != story_id:  # a pulse copied or renamed from another story
+        raise ValueError(f"the saved pulse {pulse_dir / f'{story_id}.json'} is for story {result.story_id}, not {story_id}")
     if result is None:
         result = cluster(story_id, "", [c for c in children if not isinstance(c, dict) or c.get("text")], client)
     if result is None:
@@ -349,20 +351,26 @@ def draft(
     """
     profile, jobs = _load_profile_and_jobs(username, jobs_file, profiles_dir)
     skipped = []
+    cut = False
     try:
         client = _model_client(model)
-        for m in top_matches(profile, jobs, limit=DRAFT_MATCHES):
+        matches = top_matches(profile, jobs, limit=DRAFT_MATCHES + 1)  # one extra tells "10 tried" from "all tried"
+        cut = len(matches) > DRAFT_MATCHES
+        for m in matches[:DRAFT_MATCHES]:
             company = m.job.company
             repo = next((r for r in profile.notable_repos if any(x.kind == "repo" and x.evidence == r.name for x in m.reasons)), None)
             domain = url_domain(m.job.url)
             if repo is None or domain is None:
                 skipped.append(f"{company}: {'no matched repo' if repo is None else 'no domain in the job link'}")
                 continue
+            if is_platform_domain(domain):  # before any request: a failed search must not stop the other matches
+                skipped.append(f"{company}: platform domain ({domain}); a story that links to it may belong to someone else")
+                continue
             found = hn.search_show_hn(company, domain=domain)
             result = build_result(company, domain, found["hits"], found["total_hits"])
             story = next((c for c in result.candidates if c.domain_match), None)
             if result.low_confidence or story is None:
-                skipped.append(f"{company}: {'platform domain' if result.platform_domain else 'no Show HN links to ' + domain}")
+                skipped.append(f"{company}: no Show HN links to {domain}")
                 continue
             item = hn.fetch_item(story.story_id)
             if not isinstance(item, dict) or item.get("type") != "story" or not isinstance(item.get("children", []), list):
@@ -389,6 +397,8 @@ def draft(
         typer.echo(f"No cited problem found for {_terminal_safe(profile.username)}. No draft written.")
         for line in skipped:
             typer.echo(f"- {_terminal_safe(line)}")
+        if cut:  # rule 6: a cut search is not a complete one
+            typer.echo(f"Only the {DRAFT_MATCHES} best matches were checked; lower-ranked matches were not.")
         return
 
     typer.echo(f"Draft for {_terminal_safe(drafted.company)} ({drafted.model}), using your repo {_terminal_safe(drafted.repo)}:")
@@ -397,6 +407,9 @@ def draft(
         typer.echo(_terminal_safe(line.text))
     typer.echo("")
     typer.echo("Evidence (read it before you send anything; nothing is sent):")
+    for n, line in enumerate(drafted.lines, start=1):
+        if line.comment_ids:
+            typer.echo(f"line {n} cites comment {', '.join(str(i) for i in line.comment_ids)}")
     typer.echo(f"repo {_terminal_safe(drafted.repo)} | {_terminal_safe(drafted.repo_language) or '-'} | {_terminal_safe(drafted.repo_description) or 'no description'}")
     for e in drafted.evidence:
         typer.echo(f"comment {e.comment_id} | {_terminal_safe(e.text)} | {e.url}")
