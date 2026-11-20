@@ -30,6 +30,8 @@ logs/
 site/includes/
 site/fonts/
 site/careers/data/
+site/careers/pagefind/
+site/careers/pagefind.new/
 site/favicon.svg
 site/site.webmanifest
 site/images/favicon-*.png

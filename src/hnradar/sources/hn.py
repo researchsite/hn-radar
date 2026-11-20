@@ -4,8 +4,10 @@ import hashlib
 import json
 import os
 import re
+import sys
 import tempfile
 import time
+import unicodedata
 from pathlib import Path
 
 import httpx
@@ -17,6 +19,8 @@ ITEM_TTL = 6 * 60 * 60
 SHOW_HN_TTL = 60 * 60
 SHOW_HN_PAGE = 50  # hits requested per search; the caller reports when total_hits is larger
 TITLE_PREFIX = "ask hn: who is hiring"
+MAX_WARNING_REASON = 200
+_cache_warning_shown = False  # one warning per process, however many writes fail
 
 
 class HNError(RuntimeError):
@@ -36,12 +40,14 @@ def _get_json(
     digest = hashlib.sha256(json.dumps([path, params], sort_keys=True).encode()).hexdigest()[:16]
     cache_file = cache_dir / f"{path.replace('/', '_')}_{digest}.json"
 
-    if use_cache and cache_file.exists() and time.time() - cache_file.stat().st_mtime < ttl:
+    if use_cache:
         try:
-            cached = json.loads(cache_file.read_text(encoding="utf-8"))
-            if validate:
-                validate(cached)  # an entry of the wrong shape (old or hand-edited) is a miss, not a crash
-            return cached
+            # exists() and stat() can raise too (PermissionError on an inaccessible path): that is a miss as well
+            if cache_file.exists() and time.time() - cache_file.stat().st_mtime < ttl:
+                cached = json.loads(cache_file.read_text(encoding="utf-8"))
+                if validate:
+                    validate(cached)  # an entry of the wrong shape (old or hand-edited) is a miss, not a crash
+                return cached
         except (OSError, ValueError, HNError):
             pass  # unreadable, truncated or malformed entry: treat as a miss and refetch
 
@@ -54,6 +60,14 @@ def _get_json(
     if validate:
         validate(data)  # before the cache write: a response of the wrong shape is never cached
 
+    try:
+        _write_cache(cache_dir, cache_file, data)
+    except OSError as exc:  # the cache only saves time: the data in hand is still complete and valid
+        _warn_cache_not_written(exc)
+    return data
+
+
+def _write_cache(cache_dir: Path, cache_file: Path, data) -> None:
     cache_dir.mkdir(parents=True, exist_ok=True)
     # Write to a unique temp file, then rename, so an interrupted or concurrent write can't leave
     # a fresh, partial cache file or clobber another writer's temp file.
@@ -65,7 +79,21 @@ def _get_json(
     except BaseException:
         Path(tmp_name).unlink(missing_ok=True)
         raise
-    return data
+
+
+def _warn_cache_not_written(exc: OSError) -> None:
+    """Say once on stderr that the cache was skipped (rule 6). The OS message can hold a path from the
+    user's own machine, but control characters are still replaced (rule 8)."""
+    global _cache_warning_shown
+    if _cache_warning_shown:
+        return
+    _cache_warning_shown = True
+    kept = (" " if unicodedata.category(c) == "Cc" else c for c in str(exc) if unicodedata.category(c) != "Cf")
+    reason = " ".join("".join(kept).split())[:MAX_WARNING_REASON]
+    try:
+        print(f"Warning: could not write the HN cache ({type(exc).__name__}: {reason}); continuing without it.", file=sys.stderr)
+    except (OSError, ValueError):  # stderr closed or its reader gone: the fetched data must still be returned
+        pass
 
 
 def find_latest_hiring_story(*, cache_dir: Path | None = None, use_cache: bool = True) -> dict:
@@ -106,16 +134,13 @@ def _check_search_shape(data) -> None:
                 raise HNError(f"Unexpected Show HN hit: {key!r} is not a count: {hit!r}")
 
 
-def search_show_hn(company: str, *, cache_dir: Path | None = None, use_cache: bool = True) -> dict:
-    """Show HN stories matching `company`, in Algolia relevance order.
-
-    Returns {"total_hits": int, "hits": [{"story_id", "title", "points", "num_comments", "url"}]},
-    with at most SHOW_HN_PAGE hits. total_hits is Algolia's full count, so callers can tell when
-    the list is only part of the matches.
-    """
+def _show_hn_search(query: str, *, url_only: bool, cache_dir: Path | None, use_cache: bool) -> dict:
+    params = {"tags": "show_hn", "query": query, "hitsPerPage": str(SHOW_HN_PAGE)}
+    if url_only:
+        params["restrictSearchableAttributes"] = "url"  # undocumented for HN: it only widens the candidate pool
     data = _get_json(
         "search",
-        {"tags": "show_hn", "query": company, "hitsPerPage": str(SHOW_HN_PAGE)},
+        params,
         ttl=SHOW_HN_TTL,
         cache_dir=cache_dir,
         use_cache=use_cache,
@@ -133,6 +158,37 @@ def search_show_hn(company: str, *, cache_dir: Path | None = None, use_cache: bo
             }
         )
     return {"total_hits": data["nbHits"], "hits": hits}
+
+
+def search_show_hn(
+    company: str, *, domain: str | None = None, cache_dir: Path | None = None, use_cache: bool = True
+) -> dict:
+    """Show HN stories matching `company`, in Algolia relevance order.
+
+    With `domain`, a second search for stories whose URL contains it is merged in (de-duplicated by
+    story id, name-search copy first). A failure of either request raises; there is no partial result.
+
+    Returns {"total_hits": int, "hits": [{"story_id", "title", "points", "num_comments", "url"}]},
+    with at most SHOW_HN_PAGE hits per request. total_hits lets callers tell when the list is only
+    part of the matches: with a domain it is exact when both responses held all their matches,
+    otherwise a lower bound (the larger Algolia count), because the two result sets can overlap.
+    """
+    if domain is not None and not domain.strip():
+        raise ValueError("domain must not be empty")  # checked before any request
+
+    found = _show_hn_search(company, url_only=False, cache_dir=cache_dir, use_cache=use_cache)
+    if domain is None:
+        return found
+
+    by_url = _show_hn_search(domain.strip(), url_only=True, cache_dir=cache_dir, use_cache=use_cache)
+    hits = list(found["hits"])
+    seen = {h["story_id"] for h in hits}
+    for hit in by_url["hits"]:
+        if hit["story_id"] not in seen:
+            seen.add(hit["story_id"])
+            hits.append(hit)
+    total_hits = max(found["total_hits"], by_url["total_hits"], len(hits))
+    return {"total_hits": total_hits, "hits": hits}
 
 
 def fetch_item(item_id: int, *, cache_dir: Path | None = None, use_cache: bool = True) -> dict:

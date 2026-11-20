@@ -1,0 +1,56 @@
+{
+ "id": 30100077,
+ "type": "story",
+ "title": "Show HN: Open-source admin panel for Supabase",
+ "url": "https://www.getmotoradmin.com/supabase",
+ "children": [
+  {
+   "id": 30100215,
+   "type": "comment",
+   "text": "The latest release of Motor Admin includes automatic DB schema reload feature.\nSo now all change in Supabase schema are automatically applied to the Motor Admin panel. \nIt means that Motor Admin now works perfectly with Supabase and can be used to build complex admin UIs for internal users.",
+   "children": []
+  },
+  {
+   "id": 30100599,
+   "type": "comment",
+   "text": "It is not clear within the documentation, is the Heroku Deployment going to run on a an Heroku Free Tier Plan?",
+   "children": []
+  },
+  {
+   "id": 30100836,
+   "type": "comment",
+   "text": "My first reaction to this is that some of the features (directly editing data, viewing data) won&#x27;t work for our deployment of supabase, as our data is within a schema not exposed by PostgREST (all interaction with supabase is done via db functions on the public schema).<p>Unless this admin panel directly connects to the postgres instance?",
+   "children": []
+  },
+  {
+   "id": 30100861,
+   "type": "comment",
+   "text": "is an AWS deploy planned soon?",
+   "children": []
+  },
+  {
+   "id": 30102826,
+   "type": "comment",
+   "text": "I have been using motor admin with a postgresql database for a few months now, and the team is really enjoying its lightning-fast features.<p>Also, the maintainers take the reported issues seriously, and have been at task with fixing them.",
+   "children": []
+  },
+  {
+   "id": 30102833,
+   "type": "comment",
+   "text": "Looks interesting ! I&#x27;m currently building a webapp on Supabase and have been considering Retool for admin purposes. What would this offer over something like Retool ? Do you offer specific features tailored to Supabase in order to make the integration easier or do you simply treat it as an ordinary PostgreSQL DB ?",
+   "children": []
+  },
+  {
+   "id": 30102971,
+   "type": "comment",
+   "text": "Based on the use cases section, it doesn&#x27;t seem like this is Supabase specific, but rather postgres specific. Do I have that right? Leveraging Supabase for marketing is a good idea.",
+   "children": []
+  },
+  {
+   "id": 30103390,
+   "type": "comment",
+   "text": "Is anyone who has tried both this and Forest Admin able to give a comparison of feature sets?",
+   "children": []
+  }
+ ]
+}

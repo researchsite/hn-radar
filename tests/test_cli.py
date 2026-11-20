@@ -7,7 +7,19 @@ from typer.testing import CliRunner
 from hnradar.cli import _terminal_safe, app
 from hnradar.models import Job, Profile
 
-from conftest import ITEM_URL, REPOS_URL, SEARCH_RESPONSE, SEARCH_URL, STORY_ID, make_show_hit, show_hn_route
+from conftest import (
+    ITEM_URL,
+    ONSITE_COMMENT,
+    PIPE_COMMENT,
+    REPOS_URL,
+    SEARCH_RESPONSE,
+    SEARCH_URL,
+    SHOW_HN_URL,
+    STORY_ID,
+    make_show_hit,
+    show_hn_route,
+    show_hn_routes,
+)
 
 runner = CliRunner()
 
@@ -273,6 +285,7 @@ def test_showhn_json_shape(respx_mock, tmp_path, monkeypatch):
         "total_hits": 1,
         "truncated": False,
         "low_confidence": False,
+        "platform_domain": False,
     }
 
 
@@ -561,3 +574,267 @@ def test_match_hostile_post_text_is_cleaned_in_the_table_and_escaped_in_json(tmp
     assert esc not in table.output and "‮" not in table.output and "\x85" not in table.output
     assert esc not in as_json.output and "‮" not in as_json.output
     assert json.loads(as_json.output)["matches"][0]["job"]["company"] == hostile["company"]
+
+
+# --- #20: URL-restricted domain query ---------------------------------------------------------------
+
+
+def test_showhn_with_domain_merges_the_url_search_and_ranks_its_story_first(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    route = show_hn_routes(
+        respx_mock,
+        [make_show_hit(1, "Show HN: Popular but not Acme", points=900, url="https://other.com")],
+        [make_show_hit(2, "Show HN: Acme launch", points=5, url="https://acme.com/launch")],
+    )
+
+    result = runner.invoke(app, ["showhn", "Acme", "--domain", "acme.com", "--json"])
+
+    data = json.loads(result.stdout)
+    assert result.exit_code == 0, result.output
+    assert [c["story_id"] for c in data["candidates"]] == [2, 1]
+    assert data["candidates"][0]["domain_match"] is True
+    assert (data["total_hits"], data["truncated"], data["low_confidence"]) == (2, False, False)
+    assert route.call_count == 2
+
+
+def test_showhn_without_domain_makes_exactly_one_request(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    route = show_hn_routes(respx_mock, [make_show_hit(1, "Show HN: Acme")], [])
+
+    result = runner.invoke(app, ["showhn", "Acme"])
+
+    assert result.exit_code == 0, result.output
+    assert route.call_count == 1
+
+
+def test_showhn_merged_total_is_a_lower_bound_and_reported_as_cut(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    show_hn_routes(
+        respx_mock,
+        [make_show_hit(i, "Show HN: x", points=i) for i in range(1, 9)],
+        [make_show_hit(99, "Show HN: Acme", url="https://acme.com")],
+        name_nb=813,
+    )
+
+    result = runner.invoke(app, ["showhn", "Acme", "--domain", "acme.com", "--json"])
+
+    data = json.loads(result.stdout)
+    assert result.exit_code == 0, result.output
+    assert (len(data["candidates"]), data["total_hits"], data["truncated"]) == (5, 813, True)
+    assert data["candidates"][0]["story_id"] == 99  # the domain match is kept even though 8 other hits outrank it by points
+
+
+@pytest.mark.parametrize("status", [403, 404, 429, 503])
+def test_showhn_domain_request_failure_exits_1_with_no_partial_result(respx_mock, tmp_path, monkeypatch, status):
+    monkeypatch.chdir(tmp_path)
+
+    def respond(request):
+        if request.url.params.get("restrictSearchableAttributes"):
+            return httpx.Response(status, json={"message": "nope"})
+        return httpx.Response(200, json={"hits": [make_show_hit(1, "Show HN: Acme")], "nbHits": 1})
+
+    respx_mock.get(SHOW_HN_URL).mock(side_effect=respond)
+
+    result = runner.invoke(app, ["showhn", "Acme", "--domain", "acme.com"])
+
+    assert result.exit_code == 1
+    assert "Error:" in result.output
+    assert "Show HN candidates" not in result.output  # the name-search result is not printed as if it were complete
+
+
+def test_showhn_help_says_a_domain_match_is_not_ownership():
+    result = runner.invoke(app, ["showhn", "--help"])
+
+    text = " ".join(result.output.split())
+    assert "links to that domain, not that the company posted it" in text
+
+
+@pytest.mark.parametrize(
+    "args, expected",
+    [
+        (["showhn", "Supabase"], "refine the name or add --domain."),
+        (["showhn", "Supabase", "--domain", "supabase.com"], "refine the name."),
+    ],
+)
+def test_showhn_cut_hint_does_not_ask_for_a_domain_that_was_already_given(
+    respx_mock, tmp_path, monkeypatch, args, expected
+):
+    monkeypatch.chdir(tmp_path)
+    show_hn_routes(respx_mock, [make_show_hit(i, "Show HN: x", points=i) for i in range(1, 9)], [], name_nb=813)
+
+    result = runner.invoke(app, args)
+
+    assert result.exit_code == 0, result.output
+    hint = [line for line in result.output.splitlines() if line.startswith("Showing ")]
+    assert hint == [f"Showing 5 of 813 hits; {expected}"]
+    assert ("add --domain" in hint[0]) is ("--domain" not in args)
+
+
+def test_showhn_prints_no_cut_hint_when_nothing_was_cut(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    show_hn_routes(respx_mock, [make_show_hit(1, "Show HN: Acme", url="https://acme.com")], [])
+
+    result = runner.invoke(app, ["showhn", "Acme", "--domain", "acme.com"])
+
+    assert result.exit_code == 0, result.output
+    assert "Showing " not in result.output
+
+
+def _thread_with_profile(respx_mock, texts):
+    respx_mock.get(SEARCH_URL).mock(return_value=httpx.Response(200, json=SEARCH_RESPONSE))
+    children = [{"id": 300 + i, "type": "comment", "text": t, "children": []} for i, t in enumerate(texts)]
+    respx_mock.get(ITEM_URL).mock(
+        return_value=httpx.Response(200, json={"id": STORY_ID, "title": "Ask HN: Who is hiring? (November 2026)", "children": children})
+    )
+
+
+PROFILE_HTML = "I&#x27;m Sushant Gangurde, A Software Engineer focused on Full-Stack Development.<p>I work with React."
+
+
+def test_fetch_hiring_skips_candidate_profiles_and_says_so(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _thread_with_profile(respx_mock, [PIPE_COMMENT, PROFILE_HTML, ONSITE_COMMENT])
+    out = tmp_path / "jobs.json"
+
+    result = runner.invoke(app, ["fetch-hiring", "--out", str(out)])
+
+    assert result.exit_code == 0, result.output
+    assert "Wrote 2 jobs" in result.output
+    assert "Skipped 1 candidate profile" in result.output
+    assert [j["comment_id"] for j in json.loads(out.read_text(encoding="utf-8"))] == [300, 302]
+
+
+def test_fetch_hiring_json_keeps_stdout_valid_and_reports_skips_on_stderr(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _thread_with_profile(respx_mock, [PROFILE_HTML, PROFILE_HTML, PIPE_COMMENT])
+
+    result = runner.invoke(app, ["fetch-hiring", "--json"])
+
+    assert result.exit_code == 0, result.output
+    assert [j["comment_id"] for j in json.loads(result.stdout)] == [302]
+    assert "Skipped 2 candidate profiles" in result.stderr
+    assert "Skipped" not in result.stdout
+
+
+def test_fetch_hiring_prints_no_skip_note_when_nothing_was_skipped(mock_hn, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    result = runner.invoke(app, ["fetch-hiring", "--out", str(tmp_path / "jobs.json")])
+
+    assert result.exit_code == 0, result.output
+    assert "Skipped" not in result.output
+
+
+def test_fetch_hiring_limit_counts_profiles_among_the_examined_comments(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    _thread_with_profile(respx_mock, [PROFILE_HTML, PIPE_COMMENT])
+
+    result = runner.invoke(app, ["fetch-hiring", "--limit", "1", "--out", str(tmp_path / "jobs.json")])
+
+    assert result.exit_code == 0, result.output
+    assert "Wrote 0 jobs" in result.output
+    assert "Skipped 1 candidate profile" in result.output
+
+
+PLATFORM_NOTICE = "Low confidence: platform domain."
+
+
+def test_showhn_platform_domain_prints_a_notice_and_keeps_the_candidates(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    show_hn_routes(
+        respx_mock, [make_show_hit(1, "Show HN: A page", url="https://team.notion.so/page")], [make_show_hit(1, "Show HN: A page", url="https://team.notion.so/page")]
+    )
+
+    result = runner.invoke(app, ["showhn", "Notion", "--domain", "notion.so"])
+
+    assert result.exit_code == 0, result.output
+    assert PLATFORM_NOTICE in result.output
+    assert "domain match" in result.output  # the candidate is still listed
+    assert "no story URL matches" not in result.output  # one does match, so that line would be false
+
+
+def test_showhn_platform_notice_follows_rule_9_wording(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    show_hn_route(respx_mock, [make_show_hit(1, "Show HN: x", url="https://github.com/a/b")])
+
+    result = runner.invoke(app, ["showhn", "Acme", "--domain", "github.com"])
+
+    notice = next(line for line in result.output.splitlines() if line.startswith(PLATFORM_NOTICE))
+    assert "links to it" in notice and "does not show that the company posted it" in notice
+    for forbidden in ("official", "company's own", "posted by the company"):
+        assert forbidden not in notice.lower()
+
+
+def test_showhn_platform_domain_with_no_matching_story_prints_both_notes(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    show_hn_routes(respx_mock, [make_show_hit(1, "Show HN: x", url="https://elsewhere.org")], [])
+
+    result = runner.invoke(app, ["showhn", "Notion", "--domain", "notion.so"])
+
+    assert PLATFORM_NOTICE in result.output
+    assert "Low confidence: no story URL matches the domain." in result.output
+
+
+def test_showhn_platform_domain_json_sets_the_field(respx_mock, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    show_hn_route(respx_mock, [make_show_hit(1, "Show HN: x", url="https://medium.com/@a/b")])
+
+    result = runner.invoke(app, ["showhn", "Medium", "--domain", "medium.com", "--json"])
+
+    data = json.loads(result.stdout)
+    assert (data["platform_domain"], data["low_confidence"]) == (True, True)
+    assert PLATFORM_NOTICE not in result.stdout  # stdout stays JSON
+
+
+@pytest.mark.parametrize("args", [["showhn", "Supabase", "--domain", "supabase.com"], ["showhn", "Supabase"]])
+def test_showhn_ordinary_input_has_no_platform_notice(respx_mock, tmp_path, monkeypatch, args):
+    monkeypatch.chdir(tmp_path)
+    show_hn_routes(respx_mock, [make_show_hit(1, "Show HN: x", url="https://supabase.com")], [make_show_hit(1, "Show HN: x", url="https://supabase.com")])
+
+    result = runner.invoke(app, args)
+
+    assert result.exit_code == 0, result.output
+    assert "platform" not in result.output.lower()
+
+
+def test_showhn_help_mentions_the_platform_notice():
+    text = " ".join(runner.invoke(app, ["showhn", "--help"]).output.split())
+    assert "platform" in text.lower()
+
+
+def _blocked_cache(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "cache").write_text("a file where the cache directory should be", encoding="utf-8")
+
+
+def test_showhn_with_an_unwritable_cache_prints_its_result_and_one_warning(respx_mock, tmp_path, monkeypatch):
+    _blocked_cache(tmp_path, monkeypatch)
+    show_hn_route(respx_mock, [make_show_hit(7, "Show HN: Acme", url="https://acme.com/x")])
+
+    result = runner.invoke(app, ["showhn", "Acme", "--domain", "acme.com"])
+
+    assert result.exit_code == 0, result.output
+    assert "7 |" in result.stdout and "Warning" not in result.stdout
+    assert result.stderr.count("Warning: could not write the HN cache") == 1
+
+
+def test_fetch_hiring_with_an_unwritable_cache_still_writes_the_jobs(mock_hn, tmp_path, monkeypatch):
+    _blocked_cache(tmp_path, monkeypatch)
+
+    result = runner.invoke(app, ["fetch-hiring", "--out", str(tmp_path / "jobs.json")])
+
+    assert result.exit_code == 0, result.output
+    assert "Wrote 3 jobs" in result.stdout
+    assert result.stderr.count("Warning: could not write the HN cache") == 1
+    assert len(json.loads((tmp_path / "jobs.json").read_text(encoding="utf-8"))) == 3
+
+
+@pytest.mark.parametrize("status", [403, 404, 429, 500])
+def test_showhn_upstream_errors_still_exit_1_with_an_unwritable_cache(respx_mock, tmp_path, monkeypatch, status):
+    _blocked_cache(tmp_path, monkeypatch)
+    respx_mock.get(SHOW_HN_URL).mock(return_value=httpx.Response(status))
+
+    result = runner.invoke(app, ["showhn", "Acme"])
+
+    assert result.exit_code == 1 and "Error:" in result.stderr

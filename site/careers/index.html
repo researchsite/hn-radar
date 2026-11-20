@@ -35,8 +35,9 @@
   <div class="rw-hn-panel" role="search" aria-label="Filter jobs">
     <div class="rw-hn-row">
       <div class="rw-hn-field rw-hn-grow">
-        <label for="hn-q">Search company, role, location or stack</label>
-        <input id="hn-q" type="search" autocomplete="off" placeholder="for example: rust, climate, Berlin">
+        <label for="hn-q">Search company, role, location, stack or the post text</label>
+        <input id="hn-q" type="search" autocomplete="off" placeholder="for example: rust, climate, Berlin" aria-describedby="hn-search-note">
+        <p class="rw-hn-small rw-hn-muted" id="hn-search-note" role="status" hidden>Full-text search is not available right now, so only company, role, location and technologies are matched.</p>
       </div>
       <div class="rw-hn-field">
         <span class="rw-hn-label" id="hn-remote-label">Remote</span>
@@ -50,7 +51,7 @@
       <div class="rw-hn-field">
         <label for="hn-sort">Sort</label>
         <select id="hn-sort">
-          <option value="thread">Thread order</option>
+          <option value="thread">Thread order (best match first when searching)</option>
           <option value="company">Company A to Z</option>
           <option value="stack">Most technologies listed</option>
         </select>
@@ -106,6 +107,7 @@
   var jobs = [];          // normalised copies; the post text is cleaned once, here
   var sel = {};           // selected stack names (lower-case key)
   var limit = PAGE, showAllStack = false, lastOpener = null;
+  var hits = null, hitsFor = '', searchToken = 0;   // full-text result for one query: Map comment_id -> rank, or null (fallback match)
 
   document.getElementById('hn-pages').appendChild(H.pages('index.html'));
 
@@ -138,14 +140,17 @@
       for (var k in sel) if (have.indexOf(k) === -1) return false;
     }
     if (f.q) {
+      if (hits && hitsFor === f.q) return hits.has(j.id);   // full-text index (careers-only Pagefind, HN.search)
+      // fallback when the index is not available: plain match on the parsed fields
       var hay = (j.company + ' ' + j.role + ' ' + j.location + ' ' + j.stack.join(' ')).toLowerCase();
       return f.q.split(' ').every(function (w) { return hay.indexOf(w) !== -1; });
     }
     return true;
   }
-  function sorted(list) {
+  function sorted(list, f) {
     var by = $('hn-sort').value, out = list.slice();
-    if (by === 'company') out.sort(function (a, b) { return (a.company || '\uffff').localeCompare(b.company || '\uffff', undefined, { sensitivity: 'base' }); });
+    if (by === 'thread' && f.q && hits && hitsFor === f.q) out.sort(function (a, b) { return hits.get(a.id) - hits.get(b.id); });   // best match first
+    else if (by === 'company') out.sort(function (a, b) { return (a.company || '\uffff').localeCompare(b.company || '\uffff', undefined, { sensitivity: 'base' }); });
     else if (by === 'stack') out.sort(function (a, b) { return b.stack.length - a.stack.length; });
     return out;
   }
@@ -227,7 +232,7 @@
   function render() {
     var f = filters();
     renderChips(f);
-    var list = sorted(jobs.filter(function (j) { return passes(j, f, false); }));
+    var list = sorted(jobs.filter(function (j) { return passes(j, f, false); }), f);
     var ul = $('hn-list'); ul.textContent = '';
     list.slice(0, limit).forEach(function (j) { ul.appendChild(card(j)); });
     var shownN = Math.min(limit, list.length), filtered = active(f);
@@ -245,8 +250,20 @@
     } else { st.hidden = true; $('hn-insight').hidden = false; ul.hidden = false; }
   }
   function reset() { limit = PAGE; render(); }
+
+  // ---- full-text search: the page reads only comment ids from the index (HN.search in hn.js), never text ----
+  function runSearch(q) {
+    var token = ++searchToken;
+    if (!q) { hits = null; hitsFor = ''; $('hn-search-note').hidden = true; return Promise.resolve(); }
+    return H.search(q).then(function (ranks) {
+      if (token !== searchToken) return;      // a newer query has started: ignore this answer
+      hits = ranks; hitsFor = q;
+      $('hn-search-note').hidden = ranks !== null;
+    });
+  }
   function clearAll() {
-    $('hn-q').value = ''; $('r-all').checked = true; $('hn-link').checked = false; $('hn-sort').value = 'thread'; sel = {}; reset();
+    $('hn-q').value = ''; $('r-all').checked = true; $('hn-link').checked = false; $('hn-sort').value = 'thread'; sel = {};
+    runSearch(''); reset();
   }
 
   // ---- detail dialog ----
@@ -289,7 +306,7 @@
 
   // ---- events ----
   var timer;
-  $('hn-q').addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(reset, 120); });
+  $('hn-q').addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(function () { runSearch(filters().q).then(reset); }, 120); });
   document.querySelectorAll('input[name="remote"]').forEach(function (r) { r.addEventListener('change', reset); });
   $('hn-link').addEventListener('change', reset);
   $('hn-sort').addEventListener('change', reset);
@@ -330,6 +347,8 @@
         fromQuery();
         render();
         var m = /^#c(\d+)$/.exec(location.hash); if (m) open(parseInt(m[1], 10), null);
+        // a preset ?q= is searched with the index too; the list above already shows the plain match, so it is never blank
+        if (filters().q) return runSearch(filters().q).then(render);
       })
       .catch(function () {
         H.state(st, 'The jobs data could not be loaded', 'The file data/jobs.json is missing or is not a list of posts. Nothing is wrong with your connection if this keeps happening; the data may not have been published yet.', { label: 'Try again', run: load });
