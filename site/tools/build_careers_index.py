@@ -143,8 +143,18 @@ def build(
         count = indexed_page_count(staging)
         if count != len(jobs):
             raise IndexBuildError(f"pagefind indexed {count} pages for {len(jobs)} jobs: index not replaced")
-        shutil.rmtree(out_dir, ignore_errors=True)
-        staging.replace(out_dir)
+        # keep the working index until the new one is in place; put it back if the swap fails
+        backup = out_dir.with_name(out_dir.name + ".old")
+        shutil.rmtree(backup, ignore_errors=True)
+        if out_dir.exists():
+            out_dir.replace(backup)
+        try:
+            staging.replace(out_dir)
+        except OSError:
+            if backup.exists() and not out_dir.exists():
+                backup.replace(out_dir)
+            raise
+        shutil.rmtree(backup, ignore_errors=True)
     finally:
         shutil.rmtree(staging, ignore_errors=True)
     return count

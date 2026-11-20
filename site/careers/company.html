@@ -170,7 +170,6 @@
         if (!ids.length) { dropped++; return; }   // a point with no source comment is never shown (AGENTS.md rule 1)
         var li = el('li', { className: 'rw-hn-point' });
         li.appendChild(el('p', {}, clean(it.summary)));
-        if (int(it.mention_count) && it.mention_count > 0) li.appendChild(el('p', { className: 'rw-hn-small rw-hn-muted' }, it.mention_count === 1 ? 'Said in 1 comment' : 'Said in ' + it.mention_count + ' comments'));
         li.appendChild(H.citations(ids));
         ul.appendChild(li); n++;
       });
@@ -189,7 +188,7 @@
     body.appendChild(el('p', { className: 'rw-hn-muted' }, 'Loading the pulse...'));
     H.loadJSON(H.paths.data + 'pulse/' + storyId + '.json', function (d) {
       checkPulse(d);
-      if (d.story_id !== undefined && parseInt(d.story_id, 10) !== storyId) throw new Error('story_id');   // saved under the wrong thread
+      if (!int(d.story_id) || d.story_id !== storyId) throw new Error('story_id');   // missing, or saved under the wrong thread
     }).then(function (d) {
       if (token !== pulseToken) return;
       body.textContent = ''; body.appendChild(renderPulse(d));

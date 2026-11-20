@@ -140,3 +140,19 @@ def test_main_exit_codes_and_summary(tmp_path, monkeypatch, capsys):
     assert code == 1 and "1 written" in out.out and "1 failed" in out.out and "failed: 2 (Down)" in out.err
     assert bsd.main(["--jobs", str(tmp_path / "missing.json")]) == 1
     assert bsd.main(["--jobs", str(jobs_file), "--limit", "0"]) == 1
+
+
+def test_a_backslash_link_is_never_a_domain(tmp_path):
+    calls = []
+    run([job(1, url="https://evil.example\\@acme.com/x")], tmp_path, search=fake_search(calls))
+    assert calls == [("Acme", None)]
+
+
+def test_a_changed_company_or_link_is_looked_up_again_and_removed_jobs_are_pruned(tmp_path):
+    calls = []
+    run([job(1), job(2)], tmp_path, search=fake_search(calls))
+    counts = run([job(1, url="https://acme.io/careers"), job(2)], tmp_path, search=fake_search(calls))
+    assert counts["written"] == 1 and counts["skipped"] == 1
+    assert json.loads((tmp_path / "showhn" / "1.json").read_text(encoding="utf-8"))["domain"] == "acme.io"
+    assert bsd.prune(tmp_path / "showhn", [job(2)]) == 1
+    assert not (tmp_path / "showhn" / "1.json").exists() and (tmp_path / "showhn" / "2.json").exists()

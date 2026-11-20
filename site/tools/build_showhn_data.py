@@ -64,6 +64,8 @@ def job_query(job: Job) -> str | None:
 
 def job_domain(job: Job) -> str | None:
     """The host of the job's own link as a bare domain, or None (no link, or not a plain http(s) host)."""
+    if "\\" in (job.url or ""):  # browsers and urlparse read "https://evil.com\@acme.com" as different hosts: never trust it
+        return None
     try:
         parsed = urlparse(job.url or "")
         if parsed.scheme not in ("http", "https") or not parsed.hostname:
@@ -71,6 +73,26 @@ def job_domain(job: Job) -> str | None:
         return normalize_domain(parsed.hostname)
     except ValueError:  # malformed URL or a host that is not a bare ASCII domain
         return None
+
+
+def is_current(path: Path, query: str, domain: str | None) -> bool:
+    """True when the saved file is a valid result for this company and domain (a corrected job is looked up again)."""
+    try:
+        saved = ShowHNResult.model_validate_json(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    return saved.query == query and saved.domain == domain
+
+
+def prune(out_dir: Path, jobs: list[Job]) -> int:
+    """Delete files of jobs that are no longer in jobs.json (this folder only holds generated files)."""
+    keep = {f"{job.comment_id}.json" for job in jobs}
+    removed = 0
+    for file in out_dir.glob("*.json"):
+        if file.stem.isdigit() and file.name not in keep:
+            file.unlink()
+            removed += 1
+    return removed
 
 
 def build(
@@ -92,11 +114,11 @@ def build(
         if query is None:
             counts["no_company"] += 1
             continue
-        if target.exists() and not refresh:
+        domain = job_domain(job)
+        if target.exists() and not refresh and is_current(target, query, domain):
             counts["skipped"] += 1
             continue
         try:
-            domain = job_domain(job)
             found = search(query, domain=domain)
             result = build_result(query, domain, found["hits"], found["total_hits"])
             write(target, result.model_dump_json(indent=2) + "\n")
@@ -144,10 +166,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
     counts = build(jobs, args.out, refresh=args.refresh, limit=args.limit, pause=args.pause)
+    pruned = prune(args.out, jobs) if args.limit is None and args.out.is_dir() else 0
     indexed = write_index(args.out, args.out.parent / INDEX_NAME)
     print(f"Show HN files in {args.out}: {counts['written']} written, {counts['skipped']} already there, "
           f"{counts['no_company']} posts without a company name, {len(counts['failed'])} failed. "
-          f"{INDEX_NAME}: {indexed} entries.")
+          f"{INDEX_NAME}: {indexed} entries" + (f"; removed {pruned} files of jobs no longer listed." if pruned else "."))
     for comment_id, query, reason in counts["failed"]:
         print(f"  failed: {comment_id} ({query}): {reason}", file=sys.stderr)
     return 1 if counts["failed"] else 0
