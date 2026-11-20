@@ -4,8 +4,10 @@ import hashlib
 import json
 import os
 import re
+import sys
 import tempfile
 import time
+import unicodedata
 from pathlib import Path
 
 import httpx
@@ -17,6 +19,8 @@ ITEM_TTL = 6 * 60 * 60
 SHOW_HN_TTL = 60 * 60
 SHOW_HN_PAGE = 50  # hits requested per search; the caller reports when total_hits is larger
 TITLE_PREFIX = "ask hn: who is hiring"
+MAX_WARNING_REASON = 200
+_cache_warning_shown = False  # one warning per process, however many writes fail
 
 
 class HNError(RuntimeError):
@@ -36,12 +40,14 @@ def _get_json(
     digest = hashlib.sha256(json.dumps([path, params], sort_keys=True).encode()).hexdigest()[:16]
     cache_file = cache_dir / f"{path.replace('/', '_')}_{digest}.json"
 
-    if use_cache and cache_file.exists() and time.time() - cache_file.stat().st_mtime < ttl:
+    if use_cache:
         try:
-            cached = json.loads(cache_file.read_text(encoding="utf-8"))
-            if validate:
-                validate(cached)  # an entry of the wrong shape (old or hand-edited) is a miss, not a crash
-            return cached
+            # exists() and stat() can raise too (PermissionError on an inaccessible path): that is a miss as well
+            if cache_file.exists() and time.time() - cache_file.stat().st_mtime < ttl:
+                cached = json.loads(cache_file.read_text(encoding="utf-8"))
+                if validate:
+                    validate(cached)  # an entry of the wrong shape (old or hand-edited) is a miss, not a crash
+                return cached
         except (OSError, ValueError, HNError):
             pass  # unreadable, truncated or malformed entry: treat as a miss and refetch
 
@@ -54,6 +60,14 @@ def _get_json(
     if validate:
         validate(data)  # before the cache write: a response of the wrong shape is never cached
 
+    try:
+        _write_cache(cache_dir, cache_file, data)
+    except OSError as exc:  # the cache only saves time: the data in hand is still complete and valid
+        _warn_cache_not_written(exc)
+    return data
+
+
+def _write_cache(cache_dir: Path, cache_file: Path, data) -> None:
     cache_dir.mkdir(parents=True, exist_ok=True)
     # Write to a unique temp file, then rename, so an interrupted or concurrent write can't leave
     # a fresh, partial cache file or clobber another writer's temp file.
@@ -65,7 +79,21 @@ def _get_json(
     except BaseException:
         Path(tmp_name).unlink(missing_ok=True)
         raise
-    return data
+
+
+def _warn_cache_not_written(exc: OSError) -> None:
+    """Say once on stderr that the cache was skipped (rule 6). The OS message can hold a path from the
+    user's own machine, but control characters are still replaced (rule 8)."""
+    global _cache_warning_shown
+    if _cache_warning_shown:
+        return
+    _cache_warning_shown = True
+    kept = (" " if unicodedata.category(c) == "Cc" else c for c in str(exc) if unicodedata.category(c) != "Cf")
+    reason = " ".join("".join(kept).split())[:MAX_WARNING_REASON]
+    try:
+        print(f"Warning: could not write the HN cache ({type(exc).__name__}: {reason}); continuing without it.", file=sys.stderr)
+    except (OSError, ValueError):  # stderr closed or its reader gone: the fetched data must still be returned
+        pass
 
 
 def find_latest_hiring_story(*, cache_dir: Path | None = None, use_cache: bool = True) -> dict:

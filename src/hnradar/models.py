@@ -32,6 +32,9 @@ class ShowHNResult(BaseModel):
     total_hits: int
     truncated: bool
     low_confidence: bool
+    # True when the requested domain is a shared or platform host (github.com, a job board, ...). Stories that
+    # link to it are often other people's, so a domain match there is weak; low_confidence is also set.
+    platform_domain: bool = False
 
 
 class Language(BaseModel):

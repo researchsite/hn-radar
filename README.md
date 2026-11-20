@@ -26,6 +26,7 @@ commit it.
 | `showhn <company>` | Finds up to 5 candidate Show HN stories for a company, domain matches first. | nothing |
 | `fingerprint <user>` | Summarises a public GitHub user's languages, topics and notable repos. | `data/profiles/<user>.json` |
 | `match <user>` | Scores the jobs against the user's profile and shows the top 3, each with reasons. | nothing |
+| `draft <user>` | Writes a 5-line outreach note to the best-matched company, citing one user-reported problem. | nothing |
 
 ### fetch-hiring
 
@@ -37,7 +38,8 @@ uv run hnradar fetch-hiring --json          # print JSON instead of a table (wri
 ```
 
 Run it once a month, or after a parser change, to refresh `data/jobs.json`. HN responses are cached in
-`data/cache/`.
+`data/cache/`. If the cache cannot be written, the command still finishes and prints one
+warning on stderr; a failed HN request is still an error.
 
 ### showhn
 
@@ -47,7 +49,13 @@ uv run hnradar showhn Acme --domain acme.com   # story URLs on that domain rank 
 uv run hnradar showhn Acme --json
 ```
 
-Prints a "low confidence" note when no story URL matches the domain.
+Prints a "low confidence" note when no story URL matches the domain. It also flags a platform domain
+(github.com, notion.so, a job board, a form host): stories that link to it may belong to someone else, so
+the result has `platform_domain: true` and `low_confidence: true`.
+
+The check errs on the side of flagging. A company's own page on a platform (`acme.github.io`,
+`acme.notion.site`) is flagged, and so is a company that is itself a listed platform (`substack.com`). The
+list in `showhn.py` is a start: a platform that is not listed is treated as an ordinary domain.
 
 ### fingerprint
 
@@ -71,6 +79,23 @@ Run `fetch-hiring` and `fingerprint` first. Scoring is deterministic: language m
 matches 10, a remote bonus of 5 only when something else matched, capped at 100. Ties go to the newer post.
 The command exits with an error if the profile is missing, malformed, belongs to another user, or if two
 profile files differ only by letter case.
+
+### draft
+
+```
+uv run hnradar draft octo                          # needs a profile and data/jobs.json; uses a saved pulse if there is one
+uv run hnradar draft octo --model qwen2.5:7b --pulse-dir data/pulse
+```
+
+Tries the 10 best matches in order, and prints which line cites which comment. A match is used only if its job link has a domain that is not a platform
+host, a Show HN links to that domain, and the thread has a `pulse` "bug" whose cited comments are all in the
+thread. If none qualifies it prints `No cited problem found` with the reason per company and writes no draft
+(exit 0). The note says "a Show HN that links to ..." because a link does not show the company posted it.
+Under the note it prints the repo description, each cited comment (cleaned, cut to 300 characters) and its HN
+link. Read them before you send anything: a small model can say more about the repo than its description
+states. Nothing is sent. A careers subdomain (`jobs.acme.com`) is searched as given and may find no story. A company's own page on a
+platform (`acme.github.io`) and a company that is itself a listed platform are skipped on purpose: the safe
+side, not a solved case. If the 10 best matches give no draft, it says lower-ranked matches were not checked.
 
 ## Typical session
 

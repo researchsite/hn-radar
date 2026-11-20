@@ -205,7 +205,7 @@ def test_two_writers_on_one_cache_key_both_succeed(respx_mock, tmp_path, monkeyp
     assert len(list(tmp_path.glob("*.json"))) == 1
 
 
-def test_failed_cache_write_leaves_no_temp_file(respx_mock, tmp_path, monkeypatch):
+def test_failed_cache_write_returns_the_data_leaves_no_temp_file_and_warns(respx_mock, tmp_path, monkeypatch, capsys):
     show_hn_route(respx_mock, [make_show_hit(7, "Show HN: Acme")])
 
     def broken_replace(src, dst):
@@ -213,10 +213,80 @@ def test_failed_cache_write_leaves_no_temp_file(respx_mock, tmp_path, monkeypatc
 
     monkeypatch.setattr(os, "replace", broken_replace)
 
-    with pytest.raises(OSError):
-        hn.search_show_hn("Acme", cache_dir=tmp_path)
+    found = hn.search_show_hn("Acme", cache_dir=tmp_path)
 
+    assert found["hits"][0]["story_id"] == 7
     assert not list(tmp_path.iterdir())
+    err = capsys.readouterr().err
+    assert err == "Warning: could not write the HN cache (OSError: disk full); continuing without it.\n"
+
+
+def test_cache_directory_that_is_a_file_still_returns_the_data(respx_mock, tmp_path, capsys):
+    show_hn_route(respx_mock, [make_show_hit(7, "Show HN: Acme")])
+    blocker = tmp_path / "cache"
+    blocker.write_text("a file where the directory should be", encoding="utf-8")
+
+    found = hn.search_show_hn("Acme", cache_dir=blocker)
+
+    assert found["hits"][0]["story_id"] == 7
+    assert "Warning: could not write the HN cache" in capsys.readouterr().err
+
+
+def test_failing_temp_file_creation_still_returns_the_data(respx_mock, tmp_path, monkeypatch, capsys):
+    import tempfile
+
+    show_hn_route(respx_mock, [make_show_hit(7, "Show HN: Acme")])
+
+    def no_space(*args, **kwargs):
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(tempfile, "mkstemp", no_space)
+
+    assert hn.search_show_hn("Acme", cache_dir=tmp_path)["hits"]
+    assert "No space left on device" in capsys.readouterr().err
+
+
+def test_the_warning_is_shown_once_even_when_several_writes_fail(respx_mock, tmp_path, monkeypatch, capsys):
+    show_hn_route(respx_mock, [make_show_hit(7, "Show HN: Acme")])
+    monkeypatch.setattr(os, "replace", lambda src, dst: (_ for _ in ()).throw(OSError("disk full")))
+
+    hn.search_show_hn("Acme", cache_dir=tmp_path)
+    first = capsys.readouterr().err
+    hn.search_show_hn("Other", cache_dir=tmp_path)  # a second request, a second failed write
+    second = capsys.readouterr().err
+
+    assert first.count("Warning:") == 1 and second == ""
+
+
+def test_the_warning_text_is_terminal_safe_and_bounded(respx_mock, tmp_path, monkeypatch, capsys):
+    show_hn_route(respx_mock, [make_show_hit(7, "Show HN: Acme")])
+    nasty = "bad\x1b[31m name\u202e " + "x" * 1000
+    monkeypatch.setattr(os, "replace", lambda src, dst: (_ for _ in ()).throw(OSError(nasty)))
+
+    hn.search_show_hn("Acme", cache_dir=tmp_path)
+
+    err = capsys.readouterr().err
+    assert "\x1b" not in err and "\u202e" not in err
+    assert len(err) < hn.MAX_WARNING_REASON + 120 and err.endswith("continuing without it.\n")
+
+
+@pytest.mark.parametrize("status", [403, 404, 429, 500])
+def test_an_upstream_error_is_not_hidden_by_an_unwritable_cache(respx_mock, tmp_path, status):
+    blocker = tmp_path / "cache"
+    blocker.write_text("x", encoding="utf-8")
+    respx_mock.get(SHOW_HN_URL).mock(return_value=httpx.Response(status))
+
+    with pytest.raises(httpx.HTTPStatusError):
+        hn.search_show_hn("Acme", cache_dir=blocker)
+
+
+def test_a_wrong_shape_response_still_raises_with_an_unwritable_cache(respx_mock, tmp_path):
+    blocker = tmp_path / "cache"
+    blocker.write_text("x", encoding="utf-8")
+    respx_mock.get(SHOW_HN_URL).mock(return_value=httpx.Response(200, json={"nope": 1}))
+
+    with pytest.raises(hn.HNError):
+        hn.search_show_hn("Acme", cache_dir=blocker)
 
 
 @pytest.mark.parametrize("status", [403, 404, 429, 500, 503])
@@ -450,3 +520,54 @@ def test_search_show_hn_domain_response_of_the_wrong_shape_raises_and_is_not_cac
     with pytest.raises(hn.HNError):
         hn.search_show_hn("Acme", domain="acme.com", cache_dir=tmp_path)
     assert len(list(tmp_path.glob("search_*.json"))) == 1
+
+
+@pytest.mark.skipif(os.name == "nt" or (hasattr(os, "geteuid") and os.geteuid() == 0), reason="permissions are not enforced on Windows or for root")
+def test_a_read_only_cache_directory_still_returns_the_data(respx_mock, tmp_path, capsys):
+    show_hn_route(respx_mock, [make_show_hit(7, "Show HN: Acme")])
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    cache.chmod(0o500)
+    try:
+        found = hn.search_show_hn("Acme", cache_dir=cache)
+    finally:
+        cache.chmod(0o700)
+
+    assert found["hits"][0]["story_id"] == 7
+    assert "Warning: could not write the HN cache (PermissionError" in capsys.readouterr().err
+
+
+def test_a_closed_stderr_does_not_lose_the_fetched_data(respx_mock, tmp_path, monkeypatch):
+    import sys
+
+    show_hn_route(respx_mock, [make_show_hit(7, "Show HN: Acme")])
+    monkeypatch.setattr(os, "replace", lambda src, dst: (_ for _ in ()).throw(OSError("disk full")))
+
+    class BrokenStderr:
+        def write(self, text):
+            raise BrokenPipeError("reader gone")
+
+        def flush(self):
+            raise BrokenPipeError("reader gone")
+
+    monkeypatch.setattr(sys, "stderr", BrokenStderr())
+
+    assert hn.search_show_hn("Acme", cache_dir=tmp_path)["hits"][0]["story_id"] == 7
+
+
+@pytest.mark.parametrize("method", ["exists", "stat"])
+def test_an_inaccessible_cache_path_is_a_miss_not_an_error(respx_mock, tmp_path, monkeypatch, method):
+    from pathlib import Path
+
+    show_hn_route(respx_mock, [make_show_hit(7, "Show HN: Acme")])
+    hn.search_show_hn("Acme", cache_dir=tmp_path)  # a fresh entry exists now
+    real = getattr(Path, method)
+
+    def denied(self, *args, **kwargs):
+        if self.suffix == ".json" and self.parent == tmp_path:
+            raise PermissionError("denied")
+        return real(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, method, denied)
+
+    assert hn.search_show_hn("Acme", cache_dir=tmp_path)["hits"][0]["story_id"] == 7
