@@ -77,8 +77,8 @@ Each schema has one producer. Run them in this order from the repo root; a step 
 |---|---|---|---|---|
 | 1 | Hiring posts (`Job`) | `uv run hnradar fetch-hiring` | `data/jobs.json` | works |
 | 2 | Show HN candidates (`showhn_result`, one file per job) | `uv run hnradar showhn "<company>" --json` | `data/showhn/<comment_id>.json` | one company at a time, output is not saved: the batch job is open (issue 32) |
-| 3 | Pulse (`pulse`, one file per Show HN story) | `hnradar pulse` | `data/pulse/<story_id>.json` | not built (ticket 13) |
-| 4 | Careers search index (Pagefind) | `uv run python site/tools/build_careers_index.py` | `site/careers/pagefind/` | on the search branch (PR 43); needs step 1 |
+| 3 | Pulse (`pulse`, one file per Show HN story) | `uv run hnradar pulse <story_id>` | `data/pulse/<story_id>.json` | works (needs a local Ollama model); writes nothing when a thread has too few comments, so the page shows "not produced yet" |
+| 4 | Careers search index (Pagefind) | `uv run python site/tools/build_careers_index.py` | `site/careers/pagefind/` | works; needs step 1 |
 | 5 | Dev copies | `powershell -File site/_private/sync-dev-assets.ps1` | `site/careers/data/` | works; run after 1 to 3 |
 
 The index (step 4) covers hiring posts only. Show HN and pulse data are not searched: they are read per company by `company.html`. Rebuild the index every time `jobs.json` changes: the publish script refuses an index older than the jobs file.

@@ -81,8 +81,10 @@
   }
 
   // ---- 2. Show HN candidates ----
-  function checkShowHN(d) {
+  function checkShowHN(d, company) {
     if (!d || typeof d !== 'object' || Array.isArray(d)) throw new Error('not an object');
+    // the lookup must be for this company: a file saved under the wrong job id would show another company's stories
+    if (typeof d.query !== 'string' || clean(d.query).toLowerCase() !== clean(company).toLowerCase()) throw new Error('query');
     if (!int(d.total_hits) || d.total_hits < 0) throw new Error('total_hits');
     if (!Array.isArray(d.candidates)) throw new Error('candidates');
     // an entry without a valid story id and title means the file is broken, not that there are no stories
@@ -98,7 +100,12 @@
       pulseHost.appendChild(stateBox('Nothing to summarise', 'The pulse is built from a Show HN thread, and none was found for this company.'));
       return s;
     }
-    if (d.low_confidence) s.appendChild(noteBox('Low confidence: none of these stories links to the company\'s own domain, so they may be about a different company with a similar name. Check each one before relying on it.', true));
+    if (d.low_confidence) {
+      var why = d.platform_domain === true ? 'The company\'s link points to a shared host (such as GitHub or a job board), so a story on that host says little about the company.'
+        : typeof d.domain === 'string' && d.domain ? 'None of these stories links to ' + clean(d.domain) + '.'
+        : 'No company domain was known, so stories could only be matched by name.';
+      s.appendChild(noteBox('Low confidence: ' + why + ' They may be about a different company with a similar name. Check each one before relying on it.', true));
+    }
     var total = d.total_hits;
     s.appendChild(el('p', { className: 'rw-hn-count' }, d.truncated || total > cands.length ? 'Showing ' + cands.length + ' of ' + total + ' matching stories' : cands.length + (cands.length === 1 ? ' story' : ' stories')));
     var ul = el('ul', { className: 'rw-hn-list' });
@@ -106,7 +113,9 @@
       var li = el('li', { className: 'rw-hn-item' });
       li.appendChild(el('h3', {}, H.extLink(H.hnItemUrl(c.story_id), clean(c.title), 'Hacker News story ' + c.story_id)));
       var meta = [int(c.points) ? c.points + ' points' : null, int(c.num_comments) ? c.num_comments + ' comments' : null].filter(Boolean).join(' · ');
-      var kids = [c.domain_match === true ? el('span', { className: 'rw-hn-badge rw-hn-badge--note' }, 'Links to the company domain') : el('span', { className: 'rw-hn-badge rw-hn-badge--warn' }, 'Name match only')];
+      var checked = typeof d.domain === 'string' && d.domain && d.platform_domain !== true;
+      var kids = [c.domain_match === true && checked ? el('span', { className: 'rw-hn-badge rw-hn-badge--note' }, 'Links to the company domain')
+        : el('span', { className: 'rw-hn-badge rw-hn-badge--warn' }, checked ? 'Name match only' : 'Matched by name, domain not checked')];
       if (meta) kids.push(el('span', { className: 'rw-hn-meta' }, meta));
       var u = H.safeUrl(c.url); if (u) kids.push(H.extLink(u.href, u.host, 'Story link ' + u.host));
       li.appendChild(el('p', { className: 'rw-hn-actions' }, kids));
@@ -133,7 +142,8 @@
   // ---- 3. pulse (pros, bugs, asks) ----
   function checkPulse(d) {
     if (!d || typeof d !== 'object' || Array.isArray(d)) throw new Error('not an object');
-    if (['ok', 'not_enough_signal'].indexOf(d.status) === -1) throw new Error('status');
+    // `hnradar pulse` writes no `status`: a file with items is a result, and a thread with too few comments writes no file
+    if (d.status !== undefined && ['ok', 'not_enough_signal'].indexOf(d.status) === -1) throw new Error('status');
     if (!Array.isArray(d.items)) throw new Error('items');
     // an item of an unknown kind or without text means a broken file, not a thread with nothing in it
     d.items.forEach(function (it) {
@@ -145,6 +155,9 @@
     if (d.status === 'not_enough_signal') {
       wrap.appendChild(stateBox('Not enough signal', 'This thread has ' + (int(d.thread_comment_count) ? d.thread_comment_count : 'too few') + ' comments, which is not enough to say what people think. Nothing is guessed.'));
       return wrap;
+    }
+    if (int(d.comments_used) && int(d.comments_total) && d.comments_used < d.comments_total) {
+      wrap.appendChild(noteBox('Based on ' + d.comments_used + ' of the ' + d.comments_total + ' top-level comments: the thread was cut before it was summarised.', true));
     }
     var dropped = 0, cols = el('div', { className: 'rw-hn-cols' });
     KINDS.forEach(function (k) {
@@ -300,7 +313,7 @@
     var showSec = section('Show HN posts'), pulseSec = section('Pulse');
     out.appendChild(showSec); out.appendChild(pulseSec);
     $('co-state').hidden = true; out.hidden = false;
-    H.loadJSON(H.paths.data + 'showhn/' + id + '.json', checkShowHN).then(function (d) {
+    H.loadJSON(H.paths.data + 'showhn/' + id + '.json', function (d) { checkShowHN(d, job.company); }).then(function (d) {
       var host = el('div'); var built = renderShowHN(d, job.company, host);
       showSec.replaceWith(built); pulseSec.appendChild(host);
     }).catch(function (e) {

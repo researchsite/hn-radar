@@ -71,6 +71,7 @@ dialog.rw-hn-dialog :focus-visible { outline: 2px solid var(--hn-focus); outline
 /* Buttons (ghost pattern from the site; the orange primary is white on #f97316, below AA for small text) */
 .rw-hn-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 8px 16px; font-family: var(--rw-font-display); font-weight: 600; font-size: 0.875rem;
   border: 1.5px solid var(--rw-border-strong); border-radius: var(--rw-r-full); background: transparent; color: var(--rw-text); cursor: pointer; text-decoration: none; }
+.rw-hn-btn[hidden] { display: none; }
 .rw-hn-btn:hover { background: var(--rw-bg-subtle); }
 .rw-hn-btn--solid { background: var(--rw-text); color: var(--rw-bg); border-color: var(--rw-text); }
 .rw-hn-btn--solid:hover { background: var(--rw-text-muted); border-color: var(--rw-text-muted); }
