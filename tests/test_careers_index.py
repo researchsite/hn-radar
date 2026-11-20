@@ -248,3 +248,8 @@ def test_failed_swap_keeps_the_working_index(tmp_path, monkeypatch):
     with pytest.raises(OSError):
         bci.build(jobs, out, runner=fake_runner([]))
     assert (out / "old.txt").read_text(encoding="utf-8") == "working index"
+
+
+def test_non_positive_comment_id_is_refused(tmp_path):
+    with pytest.raises(bci.IndexBuildError, match="positive"):
+        bci.load_jobs(write_jobs(tmp_path, [job(0)]))

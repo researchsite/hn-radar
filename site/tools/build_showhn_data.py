@@ -46,14 +46,18 @@ def load_jobs(path: Path) -> list[Job]:
         data = json.loads(path.read_text(encoding="utf-8"))
     except OSError as exc:
         raise ShowHNBuildError(f"cannot read {path}: {exc.strerror or exc}. Run `hnradar fetch-hiring` and the sync script first.") from exc
-    except json.JSONDecodeError as exc:
-        raise ShowHNBuildError(f"{path} is not valid JSON: {exc}") from exc
+    except (json.JSONDecodeError, UnicodeDecodeError, RecursionError) as exc:  # RecursionError: absurdly nested JSON
+        raise ShowHNBuildError(f"{path} is not valid JSON text: {type(exc).__name__}") from exc
     if not isinstance(data, list) or not data:
         raise ShowHNBuildError(f"{path} must be a non-empty list of jobs")
     try:
-        return [Job.model_validate(record) for record in data]
+        jobs = [Job.model_validate(record) for record in data]
     except ValueError as exc:
         raise ShowHNBuildError(f"{path} has an invalid job record: {exc}") from exc
+    ids = [job.comment_id for job in jobs]
+    if any(i <= 0 for i in ids) or len(set(ids)) != len(ids):
+        raise ShowHNBuildError(f"{path} has a comment_id that is not a positive number or is used twice")
+    return jobs
 
 
 def job_query(job: Job) -> str | None:

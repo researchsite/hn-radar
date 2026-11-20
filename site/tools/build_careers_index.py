@@ -68,6 +68,8 @@ def load_jobs(path: Path) -> list[Job]:
 
     seen: set[int] = set()
     for job in jobs:
+        if job.comment_id <= 0:  # the page ignores such a record, so a search hit on it would show nothing
+            raise IndexBuildError(f"comment_id {job.comment_id} in {path} is not a positive number")
         if job.comment_id in seen:
             raise IndexBuildError(f"duplicate comment_id {job.comment_id} in {path}")
         seen.add(job.comment_id)

@@ -156,3 +156,33 @@ def test_a_changed_company_or_link_is_looked_up_again_and_removed_jobs_are_prune
     assert json.loads((tmp_path / "showhn" / "1.json").read_text(encoding="utf-8"))["domain"] == "acme.io"
     assert bsd.prune(tmp_path / "showhn", [job(2)]) == 1
     assert not (tmp_path / "showhn" / "1.json").exists() and (tmp_path / "showhn" / "2.json").exists()
+
+
+@pytest.mark.parametrize("status", [403, 404, 429, 500])
+def test_http_error_statuses_are_failures_not_files(tmp_path, status):
+    def refused(query, **_):
+        request = httpx.Request("GET", "https://hn.algolia.com/api/v1/search")
+        raise httpx.HTTPStatusError("bad", request=request, response=httpx.Response(status, request=request))
+
+    counts = run([job(1)], tmp_path, search=refused)
+    assert len(counts["failed"]) == 1 and not (tmp_path / "showhn" / "1.json").exists()
+
+
+def test_limit_equal_to_the_job_count_looks_at_every_job(tmp_path):
+    calls = []
+    run([job(1), job(2)], tmp_path, search=fake_search(calls), limit=2)
+    assert len(calls) == 2
+
+
+def test_load_jobs_rejects_undecodable_deeply_nested_and_non_positive_ids(tmp_path):
+    path = tmp_path / "jobs.json"
+    path.write_bytes(b"\xff\xfe\x00bad")
+    with pytest.raises(bsd.ShowHNBuildError):
+        bsd.load_jobs(path)
+    path.write_text("[" * 100000, encoding="utf-8")
+    with pytest.raises(bsd.ShowHNBuildError):
+        bsd.load_jobs(path)
+    for ids in ([0], [-5], [3, 3]):
+        path.write_text(json.dumps([job(i).model_dump() for i in ids]), encoding="utf-8")
+        with pytest.raises(bsd.ShowHNBuildError, match="positive"):
+            bsd.load_jobs(path)
