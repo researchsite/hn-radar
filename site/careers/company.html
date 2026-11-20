@@ -214,11 +214,16 @@
   // ---- company directory (no job in the address): every post with a teaser, searchable ----
   var DIR_PAGE = 50, TEASER = 170;
   // How much we know about a company, so the best-documented come first (this page is not a second job list).
-  // One point per stated fact, up to 6 for technologies and 3 for a long post. Show HN and pulse data will add to it
-  // once those files exist for every job (issue 32, ticket 13).
+  // One point per stated fact, up to 6 for technologies and 3 for a long post. Show HN adds the most: 8 plus one per
+  // story that links to the company's own domain (up to 3); a story found by name only adds 1, because it may be
+  // about another company. The summary comes from data/showhn-index.json (tools/build_showhn_data.py); without it
+  // only the post facts count.
+  var showIndex = {};
   function detailScore(j) {
+    var s = showIndex[j.id] || { strong: 0, found: 0 };
     return Math.min(j.stack.length, 6) + (j.role ? 1 : 0) + (j.location ? 1 : 0) + (j.remote !== null ? 1 : 0)
-      + (j.url ? 1 : 0) + Math.min(3, Math.floor(j.text.length / 500));
+      + (j.url ? 1 : 0) + Math.min(3, Math.floor(j.text.length / 500))
+      + (s.strong > 0 ? 8 + Math.min(s.strong, 3) : s.found > 0 ? 1 : 0);
   }
   // the first line of a post usually repeats company, role and place, so the teaser is taken from what follows it;
   // a first line that does not name the company (for example an update or a closing notice) is real content and stays
@@ -273,6 +278,10 @@
         j.stack.slice(0, 5).forEach(function (t) { chips.appendChild(el('li', {}, el('span', { className: 'rw-hn-tag' }, t))); });
         if (j.stack.length > 5) chips.appendChild(el('li', {}, el('span', { className: 'rw-hn-tag rw-hn-tag--soft' }, '+' + (j.stack.length - 5) + ' more')));
         li.appendChild(chips);
+      }
+      var sh = showIndex[j.id];
+      if (sh && sh.strong > 0) {
+        li.appendChild(el('p', {}, el('span', { className: 'rw-hn-badge rw-hn-badge--note' }, sh.strong === 1 ? '1 Show HN post links to the company' : sh.strong + ' Show HN posts link to the company')));
       }
       if (j.closed && H.hnItemUrl(j.closedId)) {
         li.appendChild(el('p', { className: 'rw-hn-note rw-hn-note--warn' }, ['The poster\'s own reply says this job may be closed: ', H.extLink(H.hnItemUrl(j.closedId), 'HN comment ' + j.closedId, 'HN comment ' + j.closedId)]));
@@ -339,8 +348,17 @@
       } else if (raw !== null) {
         notice = 'The address does not hold a valid job id. Pick a company below.';
       }
-      $('co-state').hidden = true; $('co-out').hidden = false;
-      renderDirectory(posts.map(prep), notice, params.get('q'));
+      // the Show HN summary only orders the list: if it is missing or broken the directory still works
+      return H.loadJSON(H.paths.data + 'showhn-index.json', function (d) {
+        if (!d || typeof d !== 'object' || Array.isArray(d)) throw new Error('not an object');
+      }).catch(function () { return {}; }).then(function (idx) {
+        Object.keys(idx).forEach(function (k) {
+          var v = idx[k];
+          if (v && int(v.strong) && int(v.found) && v.strong >= 0 && v.found >= v.strong) showIndex[k] = { strong: v.strong, found: v.found };
+        });
+        $('co-state').hidden = true; $('co-out').hidden = false;
+        renderDirectory(posts.map(prep), notice, params.get('q'));
+      });
     }).catch(function () {
       show('The jobs data could not be loaded', 'The file data/jobs.json is missing or is not a list of posts.', { label: 'Try again', run: load });
     });

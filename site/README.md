@@ -68,7 +68,7 @@ Jobs, Insights and Companies show "Job posts from Hacker News, data last updated
 
 Every state is designed: missing file ("not produced yet"), invalid file, no Show HN post (`no_show_hn`), low confidence, "5 of 813" when truncated, `not_enough_signal`. A pulse point without a valid HN comment id is never shown, and the page says how many were hidden (AGENTS.md rule 1).
 
-To test with data: copy files from `_private/schema/examples/` into `careers/data/showhn/` and `careers/data/pulse/` (named as in the table). That folder is git-ignored, and **`publish-to-site.ps1` publishes only an allowlist (`$DataAllow`, today `jobs.json`)**, so test files are never published. Add a path to the allowlist only when the data is real.
+Real Show HN data: run `uv run python site/tools/build_showhn_data.py` (see the build table below). To test pulse or odd cases with fixtures, copy files from `_private/schema/examples/` into `careers/data/pulse/` (or `showhn/`). `publish-to-site.ps1` publishes only an allowlist: `jobs.json`, `showhn-index.json` and `showhn/<number>.json`. `pulse/` is never published until real pulse files exist, so test fixtures cannot go out.
 
 ### Building every data file, in order
 Each schema has one producer. Run them in this order from the repo root; a step that does not exist yet says so.
@@ -76,7 +76,7 @@ Each schema has one producer. Run them in this order from the repo root; a step 
 | # | Data (schema) | Command | Output | Status |
 |---|---|---|---|---|
 | 1 | Hiring posts (`Job`) | `uv run hnradar fetch-hiring` | `data/jobs.json` | works |
-| 2 | Show HN candidates (`showhn_result`, one file per job) | `uv run hnradar showhn "<company>" --json` | `data/showhn/<comment_id>.json` | one company at a time, output is not saved: the batch job is open (issue 32) |
+| 2 | Show HN candidates (`showhn_result`, one file per job) | `uv run python site/tools/build_showhn_data.py` (about 2 minutes, needs the network; `--limit 20` to try, `--refresh` to redo) | `site/careers/data/showhn/<comment_id>.json` and `showhn-index.json` | works. Uses each job's own link as the domain; a job board is flagged as a platform domain. A failed lookup writes nothing and is listed |
 | 3 | Pulse (`pulse`, one file per Show HN story) | `uv run hnradar pulse <story_id>` | `data/pulse/<story_id>.json` | works (needs a local Ollama model); writes nothing when a thread has too few comments, so the page shows "not produced yet" |
 | 4 | Careers search index (Pagefind) | `uv run python site/tools/build_careers_index.py` | `site/careers/pagefind/` | works; needs step 1 |
 | 5 | Dev copies | `powershell -File site/_private/sync-dev-assets.ps1` | `site/careers/data/` | works; run after 1 to 3 |
@@ -140,7 +140,7 @@ Do this when the pages are done, in a separate branch of the site project, and r
 2. Registering the pages (nav entry, `?v=` bump, `sitemap.xml`, `llms.txt`) is done by the site's own job: do not do it by hand here. The site's `pagefind.yml` and `pagefind/` are not touched either: careers has its own index (see above).
 3. Do not `git add -A` in the site project (it has unrelated daily changes); add explicit paths.
 4. Open `/careers/` locally and check the nav, footer, dark mode, search and the JSON paths.
-5. What changes when the company page goes live: `company.html` is copied like the other pages and needs no edit, but (a) `publish-to-site.ps1` publishes `data/` only from its allowlist, so `showhn/` and `pulse/` files go out only after their producer exists and the allowlist names them (a pattern such as `showhn/*.json`, never the dev fixtures); (b) its `<meta name="robots" content="noindex">` should be removed when it is ready to be found, and the page added to the site's sitemap by the site's own job; (c) the "data last updated" date comes from the `Last-Modified` header: on GitHub Pages that is the deploy day of `data/jobs.json`, so deploy it on the day of the crawl or the date will be later than the crawl.
+5. What changes when the company page goes live: `company.html` is copied like the other pages and needs no edit, but (a) `publish-to-site.ps1` publishes `data/` only from its allowlist, so only `jobs.json`, `showhn-index.json` and `showhn/<number>.json` go out; `pulse/` goes out only after real pulse files exist and the allowlist names them (never the dev fixtures); (b) its `<meta name="robots" content="noindex">` should be removed when it is ready to be found, and the page added to the site's sitemap by the site's own job; (c) the "data last updated" date comes from the `Last-Modified` header: on GitHub Pages that is the deploy day of `data/jobs.json`, so deploy it on the day of the crawl or the date will be later than the crawl.
 6. Monthly: `hnradar fetch-hiring`, the sync script, `uv run python site/tools/build_careers_index.py`, then the publish script. The index and `data/jobs.json` always travel together.
 
 The full checklist, with the exact commands and the open decisions (placeholder pages, nav placement, which account pushes), is in `site/_private/MOVE_TO_SITE.md`.
