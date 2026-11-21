@@ -186,3 +186,10 @@ def test_load_jobs_rejects_undecodable_deeply_nested_and_non_positive_ids(tmp_pa
         path.write_text(json.dumps([job(i).model_dump() for i in ids]), encoding="utf-8")
         with pytest.raises(bsd.ShowHNBuildError, match="positive"):
             bsd.load_jobs(path)
+
+
+def test_query_matches_the_page_clean_for_format_characters(tmp_path):
+    # the page (hn.js clean) turns these into spaces, so the saved query has to do the same
+    assert bsd.job_query(job(1, company="Ac​me")) == "Ac me"
+    assert bsd.job_query(job(1, company="Ac\u0010me‮Co")) == "Ac me Co"
+    assert bsd.job_query(job(1, company="  Acme   Corp ")) == "Acme Corp"

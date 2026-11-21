@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import time
 from collections.abc import Callable
@@ -36,6 +37,10 @@ DEFAULT_JOBS = SITE / "careers" / "data" / "jobs.json"
 DEFAULT_OUT = SITE / "careers" / "data" / "showhn"
 INDEX_NAME = "showhn-index.json"  # written next to the showhn folder
 
+
+# The characters company.html's clean() (hn.js) turns into spaces. The saved query must equal what the page computes
+# from the company name, or the page rejects the file as "for another company".
+_PAGE_BAD = re.compile("[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]")
 
 class ShowHNBuildError(Exception):
     """A clear, user-facing failure. Printed as 'Error: ...' with exit code 1."""
@@ -62,7 +67,7 @@ def load_jobs(path: Path) -> list[Job]:
 
 def job_query(job: Job) -> str | None:
     """The company name as company.html compares it (one line, single spaces); None when the post names no company."""
-    name = " ".join(_terminal_safe(job.company).split())
+    name = " ".join(_PAGE_BAD.sub(" ", job.company or "").split())
     return name or None
 
 

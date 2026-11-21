@@ -43,7 +43,6 @@
   document.getElementById('hn-pages').appendChild(H.pages('company.html'));
 
   var KINDS = [['pro', 'What they like'], ['bug', 'What broke'], ['ask', 'What they ask for']];
-  var pulseToken = 0;
 
   function section(title, intro) {
     var s = el('section', { className: 'rw-hn-section rw-hn-panel' });
@@ -123,19 +122,35 @@
     });
     s.appendChild(ul);
 
-    // the pulse follows the stories: a picker when there is more than one
-    var first = cands.filter(function (c) { return c.domain_match === true; })[0] || cands[0];
+    // the pulse: only stories that have a pulse file are offered; a picker only when there is more than one
     pulseHost.appendChild(el('p', { className: 'rw-hn-muted rw-hn-small' }, 'What the people on a Show HN thread said, grouped into what they like, what broke and what they asked for.'));
     var body = el('div', { id: 'co-pulse-body' });
-    if (cands.length > 1) {
-      var sel = el('select', { id: 'co-pulse-pick' });
-      cands.forEach(function (c) { sel.appendChild(el('option', { value: String(c.story_id) }, clean(c.title).slice(0, 90))); });
-      sel.value = String(first.story_id);
-      sel.addEventListener('change', function () { loadPulse(parseInt(sel.value, 10), body); });
-      pulseHost.appendChild(el('div', { className: 'rw-hn-field', style: 'max-width:520px;margin-bottom:12px' }, [el('label', { 'for': 'co-pulse-pick' }, 'Pulse for'), sel]));
-    }
     pulseHost.appendChild(body);
-    loadPulse(first.story_id, body);
+    body.appendChild(el('p', { className: 'rw-hn-muted' }, 'Looking for pulse data...'));
+    Promise.all(cands.map(probePulse)).then(function (found) {
+      body.textContent = '';
+      var have = found.filter(function (f) { return f.data; }), broken = found.filter(function (f) { return f.invalid; }).length;
+      // domain-matched stories first, then the order of the list
+      have.sort(function (a, b) { return (b.cand.domain_match === true) - (a.cand.domain_match === true); });
+      if (!have.length) {
+        body.appendChild(stateBox('No pulse', broken ? 'The pulse file of ' + (broken === 1 ? 'one of these stories' : broken + ' of these stories') + ' could not be read, so nothing is shown from it.'
+          : 'None of these stories has a pulse. A pulse is built per story, and only for threads with enough comments.'));
+        return;
+      }
+      var out = el('div');
+      if (have.length > 1) {
+        var sel = el('select', { id: 'co-pulse-pick' });
+        have.forEach(function (f) { sel.appendChild(el('option', { value: String(f.cand.story_id) }, clean(f.cand.title).slice(0, 90))); });
+        sel.addEventListener('change', function () {
+          out.textContent = ''; out.appendChild(renderPulse(have.filter(function (f) { return String(f.cand.story_id) === sel.value; })[0].data));
+        });
+        body.appendChild(el('div', { className: 'rw-hn-field', style: 'max-width:520px;margin-bottom:12px' }, [el('label', { 'for': 'co-pulse-pick' }, 'Pulse for'), sel]));
+      } else {
+        body.appendChild(el('p', { className: 'rw-hn-small' }, ['Pulse for: ', el('strong', {}, clean(have[0].cand.title).slice(0, 120))]));
+      }
+      body.appendChild(out); out.appendChild(renderPulse(have[0].data));
+      if (broken) body.appendChild(noteBox(broken + (broken === 1 ? ' pulse file' : ' pulse files') + ' for other stories could not be read and ' + (broken === 1 ? 'is' : 'are') + ' not shown.', true));
+    });
     return s;
   }
 
@@ -182,22 +197,15 @@
     wrap.appendChild(el('p', { className: 'rw-hn-note' }, ['Summaries were written by a model' + (typeof d.model === 'string' && clean(d.model) ? ' (' + clean(d.model) + ')' : '') + ' and can be wrong. The comments are the source: open them in ', story, '.']));
     return wrap;
   }
-  function loadPulse(storyId, body) {
-    var token = ++pulseToken;
-    body.textContent = '';
-    body.appendChild(el('p', { className: 'rw-hn-muted' }, 'Loading the pulse...'));
-    H.loadJSON(H.paths.data + 'pulse/' + storyId + '.json', function (d) {
+  // Look for the pulse file of one story. {cand, data} when it is valid, {cand, invalid: true} when the file is there but
+  // broken (or saved under the wrong thread), {cand} when there is no file.
+  function probePulse(cand) {
+    var storyId = cand.story_id;
+    return H.loadJSON(H.paths.data + 'pulse/' + storyId + '.json', function (d) {
       checkPulse(d);
       if (!int(d.story_id) || d.story_id !== storyId) throw new Error('story_id');   // missing, or saved under the wrong thread
-    }).then(function (d) {
-      if (token !== pulseToken) return;
-      body.textContent = ''; body.appendChild(renderPulse(d));
-    }).catch(function (e) {
-      if (token !== pulseToken) return;
-      body.textContent = '';
-      body.appendChild(isMissing(e)
-        ? stateBox('Pulse not produced yet', 'There is no pulse file for this Show HN thread yet. When it exists, what people liked, what broke and what they asked for appears here, each with links to the comments.')
-        : stateBox('The pulse could not be read', 'The pulse file for this thread is not valid, so nothing is shown from it.'));
+    }).then(function (d) { return { cand: cand, data: d }; }, function (e) {
+      return isMissing(e) ? { cand: cand } : { cand: cand, invalid: true };
     });
   }
 
@@ -233,13 +241,18 @@
     var rest = (header ? lines.slice(1).join(' ') : lines.join(' ')).replace(/\s+/g, ' ');
     return rest.length > TEASER ? rest.slice(0, TEASER).replace(/\s+\S*$/, '') + '\u2026' : rest;
   }
-  function renderDirectory(jobs, notice, presetQuery) {
+  function renderDirectory(jobs, notice, presetQuery, indexProblem) {
     document.title = 'Companies | HN Radar | RawWeights';
     $('co-title').textContent = 'Companies hiring';
     $('co-lead').textContent = 'Pick a company to see its hiring post, its Show HN posts and what their users said. Every point links to the Hacker News comment it came from.';
     $('co-back').hidden = true;
     var out = $('co-out'); out.textContent = '';
     if (notice) out.appendChild(noteBox(notice, true));
+    if (indexProblem) {
+      out.appendChild(noteBox(indexProblem === 'missing'
+        ? 'The Show HN summary has not been produced yet, so companies are ordered by what their post says, not by Show HN posts.'
+        : 'The Show HN summary could not be read, so companies are ordered by what their post says, not by Show HN posts.', true));
+    }
     var items = jobs.map(function (j) {
       j.teaser = teaser(j.text, j.company);
       j.hay = (j.company + ' ' + j.role + ' ' + j.location + ' ' + j.stack.join(' ')).toLowerCase();
@@ -350,13 +363,14 @@
       // the Show HN summary only orders the list: if it is missing or broken the directory still works
       return H.loadJSON(H.paths.data + 'showhn-index.json', function (d) {
         if (!d || typeof d !== 'object' || Array.isArray(d)) throw new Error('not an object');
-      }).catch(function () { return {}; }).then(function (idx) {
+      }).then(function (d) { return { idx: d }; }, function (e) { return { idx: {}, problem: isMissing(e) ? 'missing' : 'invalid' }; }).then(function (res) {
+        var idx = res.idx;
         Object.keys(idx).forEach(function (k) {
           var v = idx[k];
           if (v && int(v.strong) && int(v.found) && v.strong >= 0 && v.found >= v.strong) showIndex[k] = { strong: v.strong, found: v.found };
         });
         $('co-state').hidden = true; $('co-out').hidden = false;
-        renderDirectory(posts.map(prep), notice, params.get('q'));
+        renderDirectory(posts.map(prep), notice, params.get('q'), res.problem);
       });
     }).catch(function () {
       show('The jobs data could not be loaded', 'The file data/jobs.json is missing or is not a list of posts.', { label: 'Try again', run: load });
