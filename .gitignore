@@ -25,3 +25,14 @@ data/profiles/
 
 # Agent run logs
 logs/
+
+# Site dev copies (synced from the live site project; see site/README.md)
+site/includes/
+site/fonts/
+site/careers/data/
+site/careers/pagefind/
+site/careers/pagefind.new/
+site/favicon.svg
+site/site.webmanifest
+site/images/favicon-*.png
+site/images/apple-touch-icon.png
