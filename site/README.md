@@ -71,17 +71,18 @@ Every state is designed: missing file ("not produced yet"), invalid file, no Sho
 Real Show HN data: run `uv run python site/tools/build_showhn_data.py` (see the build table below). To test pulse or odd cases with fixtures, copy files from `_private/schema/examples/` into `careers/data/pulse/` (or `showhn/`). `publish-to-site.ps1` publishes only an allowlist: `jobs.json`, `showhn-index.json` and `showhn/<number>.json`. `pulse/<number>.json` is published too, so keep fixtures out of `careers/data/pulse/` and `careers/data/showhn/` (keep them elsewhere, or delete them before publishing).
 
 ### Building every data file, in order
-Each schema has one producer. Run them in this order from the repo root; a step that does not exist yet says so.
+Run from the repo root, in this order. Steps 2 to 5 read the dev copy `site/careers/data/jobs.json`, so the sync comes right after the fetch.
 
-| # | Data (schema) | Command | Output | Status |
+| # | Data | Command | Output | Notes |
 |---|---|---|---|---|
-| 1 | Hiring posts (`Job`) | `uv run hnradar fetch-hiring` | `data/jobs.json` | works |
-| 2 | Show HN candidates (`showhn_result`, one file per job) | `uv run python site/tools/build_showhn_data.py` (about 2 minutes, needs the network; `--limit 20` to try, `--refresh` to redo) | `site/careers/data/showhn/<comment_id>.json` and `showhn-index.json` | works. Uses each job's own link as the domain; a job board is flagged as a platform domain. A failed lookup writes nothing and is listed |
-| 3 | Pulse (`pulse`, one file per Show HN story) | `uv run hnradar pulse <story_id>` | `data/pulse/<story_id>.json` | works (needs a local Ollama model); writes nothing when a thread has too few comments, so the page shows "not produced yet" |
-| 4 | Careers search index (Pagefind) | `uv run python site/tools/build_careers_index.py` | `site/careers/pagefind/` | works; needs step 1 |
-| 5 | Dev copies | `powershell -File site/_private/sync-dev-assets.ps1` | `site/careers/data/` | works; run after 1 to 3 |
+| 1 | Hiring posts | `uv run hnradar fetch-hiring` | `data/jobs.json` | monthly; network |
+| 2 | Dev copies | `powershell -File site/_private/sync-dev-assets.ps1` | `site/careers/data/jobs.json` and the site's includes and fonts | after every step 1 |
+| 3 | Show HN, one file per job | `uv run python site/tools/build_showhn_data.py` | `site/careers/data/showhn/<comment_id>.json`, `showhn-index.json` | about 2 minutes, network. Skips jobs that already have a current file; `--limit 20` to try, `--refresh` to redo all. A failed lookup is listed and writes nothing |
+| 4 | Pulse, one file per Show HN story | `uv run hnradar pulse <story_id> --out site/careers/data/pulse/<story_id>.json` | `site/careers/data/pulse/<story_id>.json` | needs a local Ollama model (default `qwen2.5:7b`; `--model qwen2.5:14b` is slower and better). Run it by hand for the stories you want (for example the most-commented story that links to the company's domain); there is no batch yet. A thread with fewer than 3 comments with text writes nothing |
+| 5 | Careers search index | `uv run python site/tools/build_careers_index.py` | `site/careers/pagefind/` | after every step 2 (the publish script refuses an older index) |
+| 6 | Publish to the live site | `powershell -File site/_private/publish-to-site.ps1` (dry run), then `-Apply` | the site project | see "Moving the folder" below |
 
-The index (step 4) covers hiring posts only. Show HN and pulse data are not searched: they are read per company by `company.html`. Rebuild the index every time `jobs.json` changes: the publish script refuses an index older than the jobs file.
+The search index covers hiring posts only. Show HN and pulse files are read per company by `company.html`; the directory uses `showhn-index.json` only to put companies with a Show HN post first. The generated folders are git-ignored; keep test fixtures out of `careers/data/showhn/` and `careers/data/pulse/` because the publish script copies everything there that looks like a real file.
 
 ### Careers search: its own Pagefind index
 The job explorer searches the full text of every post with [Pagefind](https://pagefind.app), the same library and version (1.6.0) as the RawWeights site search, but with a **separate index that holds careers jobs only**.
