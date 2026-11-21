@@ -10,7 +10,9 @@ site/careers/data/pulse/<story_id>.json for each, the same result as `hnradar pu
 
 A story is picked when it links to the company's own domain (not a shared host such as GitHub), has at least
 --min-comments comments, and is among the company's --per-company most commented ones. A story shared by several
-jobs is summarised once. Stories that already have a file are skipped unless --refresh. A thread with too few
+jobs is summarised once. Several hiring posts of one company count as one company. Only the stories saved in the Show HN
+files are considered (at most 5 per company: domain matches first, then points), so a busy story ranked lower is not
+summarised. Stories that already have a file are skipped unless --refresh. A thread with too few
 comments with text writes nothing (that is a normal result, not a failure). A failed story is listed at the end and
 the exit code is 1; after 3 failures in a row the run stops (the model is probably not running).
 Needs a running Ollama with the model, and the network (HN).
@@ -28,7 +30,7 @@ import httpx
 from pydantic import ValidationError
 
 from hnradar.cli import _terminal_safe, _write_text_atomic
-from hnradar.models import ShowHNResult
+from hnradar.models import ShowHNCandidate, ShowHNResult
 from hnradar.pulse.cluster import PulseError, cluster
 from hnradar.sources import hn, ollama
 
@@ -48,7 +50,8 @@ def pick_stories(
     """(story_id, title) for the stories to summarise, most commented first, each story once."""
     if not showhn_dir.is_dir():
         raise PulseBuildError(f"{showhn_dir} is not a folder. Run build_showhn_data.py first.")
-    picked: dict[int, tuple[int, str]] = {}  # story_id -> (num_comments, title)
+    # one company can have several hiring posts: group the files by company name so the limit is per company
+    by_company: dict[str, dict[int, ShowHNCandidate]] = {}
     for file in sorted(showhn_dir.glob("*.json")):
         if not file.stem.isdigit():
             continue
@@ -56,12 +59,13 @@ def pick_stories(
             result = ShowHNResult.model_validate_json(file.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue  # a broken Show HN file: build_showhn_data.py reports and redoes it
-        usable = [
-            c for c in result.candidates
-            if c.num_comments >= min_comments
-            and ((c.domain_match and not result.platform_domain) or name_matches)
-        ]
-        usable.sort(key=lambda c: (not c.domain_match, -c.num_comments, -c.story_id))
+        stories = by_company.setdefault(result.query.casefold(), {})
+        for c in result.candidates:
+            if c.num_comments >= min_comments and ((c.domain_match and not result.platform_domain) or name_matches):
+                stories.setdefault(c.story_id, c)
+    picked: dict[int, tuple[int, str]] = {}  # story_id -> (num_comments, title)
+    for stories in by_company.values():
+        usable = sorted(stories.values(), key=lambda c: (not c.domain_match, -c.num_comments, -c.story_id))
         for c in usable[:per_company]:
             picked.setdefault(c.story_id, (c.num_comments, c.title))
     return [(sid, title) for sid, (_n, title) in sorted(picked.items(), key=lambda kv: (-kv[1][0], kv[0]))]
@@ -102,6 +106,7 @@ def build(
             if result is None:
                 counts["no_signal"] += 1
                 in_a_row = 0
+                target.unlink(missing_ok=True)  # a summary from an earlier run no longer holds: do not keep showing it
                 continue
             write(target, result.model_dump_json(indent=2) + "\n")
         except (ValueError, PulseError, ollama.ModelError, hn.HNError, httpx.HTTPError, ValidationError, OSError) as exc:

@@ -157,3 +157,18 @@ def test_main_summary_and_exit_codes(tmp_path, monkeypatch, capsys):
     assert bpd.main(["--showhn", str(tmp_path / "missing")]) == 1
     assert bpd.main(["--showhn", str(d), "--limit", "0"]) == 1
     assert bpd.main(["--showhn", str(d), "--per-company", "0"]) == 1
+
+
+def test_several_posts_of_one_company_share_the_limit(tmp_path):
+    d = tmp_path / "showhn"
+    write_showhn(d, 1, cand(10, 50), cand(11, 40))
+    write_showhn(d, 2, cand(12, 45), cand(13, 5))  # same company name ("Acme"), another hiring post
+    assert [s for s, _ in bpd.pick_stories(d, per_company=2)] == [10, 12]
+    assert [s for s, _ in bpd.pick_stories(d, per_company=3)] == [10, 12, 11]
+
+
+def test_refresh_that_finds_too_few_comments_removes_the_old_summary(tmp_path):
+    run([(7, "T7")], tmp_path)
+    assert (tmp_path / "pulse" / "7.json").exists()
+    counts = run([(7, "T7")], tmp_path, fetch=story(1), refresh=True)
+    assert counts["no_signal"] == 1 and not (tmp_path / "pulse" / "7.json").exists()
