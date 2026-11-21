@@ -133,8 +133,9 @@
       // domain-matched stories first, then the order of the list
       have.sort(function (a, b) { return (b.cand.domain_match === true) - (a.cand.domain_match === true); });
       if (!have.length) {
-        body.appendChild(stateBox('No pulse', broken ? 'The pulse file of ' + (broken === 1 ? 'one of these stories' : broken + ' of these stories') + ' could not be read, so nothing is shown from it.'
-          : 'None of these stories has a pulse. A pulse is built per story, and only for threads with enough comments.'));
+        body.appendChild(broken
+          ? stateBox('The pulse could not be read', 'The pulse file of ' + (broken === 1 ? 'one of these stories' : broken + ' of these stories') + ' is not valid, so nothing is shown from it.')
+          : stateBox('Pulse not produced yet', 'None of these stories has a pulse file: it has not been produced yet, or the thread has too few comments to say what people think (a pulse needs at least 3 comments with text).'));
         return;
       }
       var out = el('div');
@@ -368,6 +369,7 @@
         Object.keys(idx).forEach(function (k) {
           var v = idx[k];
           if (v && int(v.strong) && int(v.found) && v.strong >= 0 && v.found >= v.strong) showIndex[k] = { strong: v.strong, found: v.found };
+          else res.problem = 'invalid';   // a broken entry: say so instead of silently dropping that company's Show HN score
         });
         $('co-state').hidden = true; $('co-out').hidden = false;
         renderDirectory(posts.map(prep), notice, params.get('q'), res.problem);

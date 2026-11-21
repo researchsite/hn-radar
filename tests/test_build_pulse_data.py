@@ -172,3 +172,53 @@ def test_refresh_that_finds_too_few_comments_removes_the_old_summary(tmp_path):
     assert (tmp_path / "pulse" / "7.json").exists()
     counts = run([(7, "T7")], tmp_path, fetch=story(1), refresh=True)
     assert counts["no_signal"] == 1 and not (tmp_path / "pulse" / "7.json").exists()
+
+
+def test_unreadable_show_hn_files_are_reported_not_hidden(tmp_path, capsys):
+    d = tmp_path / "showhn"
+    write_showhn(d, 1, cand(10, 50))
+    (d / "2.json").write_text("{", encoding="utf-8")
+    problems = []
+    assert bpd.pick_stories(d, problems=problems) == [(10, "Show HN 10")]
+    assert problems == ["2.json"]
+    code = bpd.main(["--showhn", str(d), "--out", str(tmp_path / "pulse"), "--limit", "1", "--pause", "0"])
+    assert "1 Show HN file(s) could not be read" in capsys.readouterr().err
+
+
+def test_empty_folder_and_empty_list(tmp_path, capsys):
+    d = tmp_path / "showhn"
+    d.mkdir()
+    assert bpd.pick_stories(d) == []
+    assert bpd.main(["--showhn", str(d), "--out", str(tmp_path / "pulse")]) == 0
+    assert "No story to summarise" in capsys.readouterr().out
+    counts = run([], tmp_path)
+    assert counts["written"] == 0 and counts["failed"] == []
+
+
+def test_limits_are_inclusive_at_the_edge(tmp_path):
+    d = tmp_path / "showhn"
+    write_showhn(d, 1, cand(10, 3), cand(11, 2), cand(12, 9), cand(13, 8))
+    assert [s for s, _ in bpd.pick_stories(d, min_comments=3, per_company=10)] == [12, 13, 10]  # 3 is enough, 2 is not
+    assert [s for s, _ in bpd.pick_stories(d, min_comments=3, per_company=3)] == [12, 13, 10]    # exactly per_company eligible
+    assert [s for s, _ in bpd.pick_stories(d, min_comments=3, per_company=2)] == [12, 13]
+
+
+def test_two_employers_with_the_same_name_and_different_domains_do_not_share_a_limit(tmp_path):
+    d = tmp_path / "showhn"
+    d.mkdir()
+    for job_id, domain, story_id in ((1, "acme.com", 10), (2, "acme.io", 20)):
+        result = ShowHNResult(query="Acme", domain=domain, candidates=[cand(story_id, 50)], total_hits=1, truncated=False, low_confidence=False)
+        (d / f"{job_id}.json").write_text(result.model_dump_json(), encoding="utf-8")
+    assert [s for s, _ in bpd.pick_stories(d, per_company=1)] == [10, 20]
+
+
+def test_prune_stale_removes_summaries_of_threads_that_no_longer_have_enough_comments(tmp_path):
+    d = tmp_path / "showhn"
+    out = tmp_path / "pulse"
+    out.mkdir()
+    write_showhn(d, 1, cand(10, 2), cand(11, 20))
+    (out / "10.json").write_text("{}", encoding="utf-8")
+    (out / "11.json").write_text("{}", encoding="utf-8")
+    (out / "99.json").write_text("{}", encoding="utf-8")  # a story no Show HN file lists: left alone
+    assert bpd.prune_stale(d, out, 3) == 1
+    assert not (out / "10.json").exists() and (out / "11.json").exists() and (out / "99.json").exists()

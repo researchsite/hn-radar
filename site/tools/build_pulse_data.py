@@ -45,21 +45,30 @@ class PulseBuildError(Exception):
 
 
 def pick_stories(
-    showhn_dir: Path, *, per_company: int = 2, min_comments: int = 3, name_matches: bool = False
+    showhn_dir: Path,
+    *,
+    per_company: int = 2,
+    min_comments: int = 3,
+    name_matches: bool = False,
+    problems: list[str] | None = None,
 ) -> list[tuple[int, str]]:
-    """(story_id, title) for the stories to summarise, most commented first, each story once."""
+    """(story_id, title) for the stories to summarise, most commented first, each story once.
+    A Show HN file that cannot be read is skipped and its name is appended to `problems` (the caller reports it)."""
     if not showhn_dir.is_dir():
         raise PulseBuildError(f"{showhn_dir} is not a folder. Run build_showhn_data.py first.")
     # one company can have several hiring posts: group the files by company name so the limit is per company
-    by_company: dict[str, dict[int, ShowHNCandidate]] = {}
+    by_company: dict[tuple[str, str | None], dict[int, ShowHNCandidate]] = {}
     for file in sorted(showhn_dir.glob("*.json")):
         if not file.stem.isdigit():
             continue
         try:
             result = ShowHNResult.model_validate_json(file.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            continue  # a broken Show HN file: build_showhn_data.py reports and redoes it
-        stories = by_company.setdefault(result.query.casefold(), {})
+            if problems is not None:
+                problems.append(file.name)
+            continue
+        # same name and same domain = the same company; two employers that share a name keep separate limits
+        stories = by_company.setdefault((result.query.casefold(), result.domain), {})
         for c in result.candidates:
             if c.num_comments >= min_comments and ((c.domain_match and not result.platform_domain) or name_matches):
                 stories.setdefault(c.story_id, c)
@@ -69,6 +78,25 @@ def pick_stories(
         for c in usable[:per_company]:
             picked.setdefault(c.story_id, (c.num_comments, c.title))
     return [(sid, title) for sid, (_n, title) in sorted(picked.items(), key=lambda kv: (-kv[1][0], kv[0]))]
+
+
+def prune_stale(showhn_dir: Path, out_dir: Path, min_comments: int) -> int:
+    """Delete pulse files of stories that the Show HN files now list with fewer than `min_comments` comments: the
+    thread no longer has enough to summarise, so an earlier summary must not keep being shown."""
+    removed = 0
+    for file in showhn_dir.glob("*.json"):
+        if not file.stem.isdigit():
+            continue
+        try:
+            result = ShowHNResult.model_validate_json(file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        for c in result.candidates:
+            old = out_dir / f"{c.story_id}.json"
+            if c.num_comments < min_comments and old.exists():
+                old.unlink()
+                removed += 1
+    return removed
 
 
 def make_pulse(story_id: int, client, fetch: Callable[..., dict] = hn.fetch_item):
@@ -137,12 +165,20 @@ def main(argv: list[str] | None = None) -> int:
     if args.limit is not None and args.limit < 1 or args.per_company < 1 or args.min_comments < 0:
         print("Error: --limit and --per-company must be at least 1, --min-comments at least 0", file=sys.stderr)
         return 1
+    problems: list[str] = []
     try:
         stories = pick_stories(args.showhn, per_company=args.per_company, min_comments=args.min_comments,
-                               name_matches=args.name_matches)
+                               name_matches=args.name_matches, problems=problems)
     except PulseBuildError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
+    if problems:
+        shown = ", ".join(problems[:5]) + (f" and {len(problems) - 5} more" if len(problems) > 5 else "")
+        print(f"Warning: {len(problems)} Show HN file(s) could not be read and were skipped ({shown}). "
+              "Run build_showhn_data.py --refresh to rebuild them.", file=sys.stderr)
+    stale = prune_stale(args.showhn, args.out, args.min_comments) if args.out.is_dir() else 0
+    if stale:
+        print(f"Removed {stale} pulse file(s) of stories that now have too few comments.")
     if not stories:
         print("No story to summarise (no company has a Show HN story that links to its own domain).")
         return 0

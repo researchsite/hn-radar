@@ -126,14 +126,12 @@
     };
   }
   function key(s) { return s.toLowerCase(); }
-  function rk(j) { return j.remote === true ? 'yes' : j.remote === false ? 'no' : 'unknown'; }
-  function remoteText(j) { return j.remote === true ? 'Remote' : j.remote === false ? 'Not remote' : 'Remote not stated'; }
 
   function filters() {
     return { q: clean($('hn-q').value).toLowerCase(), remote: document.querySelector('input[name="remote"]:checked').value, link: $('hn-link').checked };
   }
   function passes(j, f, ignoreStack) {
-    if (f.remote !== 'all' && rk(j) !== f.remote) return false;
+    if (f.remote !== 'all' && H.remoteKey(j) !== f.remote) return false;
     if (f.link && !j.url) return false;
     if (!ignoreStack) {
       var have = j.stack.map(key);
@@ -160,7 +158,7 @@
   function card(j) {
     var li = el('li', { className: 'rw-hn-item' });
     li.appendChild(el('h2', {}, j.company || 'Company not stated'));
-    li.appendChild(el('p', { className: 'rw-hn-meta' }, [j.role || 'Role not stated', j.location || 'Location not stated', remoteText(j)].join(' · ')));
+    li.appendChild(el('p', { className: 'rw-hn-meta' }, [j.role || 'Role not stated', j.location || 'Location not stated', H.remoteLabel(j)].join(' · ')));
     if (j.stack.length) {
       var chips = el('ul', { className: 'rw-hn-chips', 'aria-label': 'Technologies' });
       j.stack.forEach(function (s) { chips.appendChild(el('li', {}, el('span', { className: 'rw-hn-tag' }, s))); });
@@ -170,7 +168,8 @@
     }
     if (j.flat) li.appendChild(el('p', { className: 'rw-hn-snippet' }, j.flat.length > SNIPPET ? j.flat.slice(0, SNIPPET).replace(/\s+\S*$/, '') + '…' : j.flat));
     var acts = el('div', { className: 'rw-hn-actions' });
-    var more = el('button', { type: 'button', className: 'rw-hn-linkbtn', 'data-id': String(j.id) }, j.flat.length > SNIPPET ? 'Read the full post' : 'Details');
+    // a real link (to this post's address in the explorer) that opens the dialog; without scripts it still goes to the post
+    var more = el('a', { href: '#c' + j.id, className: 'rw-hn-linkbtn', 'data-id': String(j.id) }, j.flat.length > SNIPPET ? 'Read the full post' : 'Details');
     more.setAttribute('aria-label', (j.flat.length > SNIPPET ? 'Read the full post from ' : 'Details for ') + (j.company || 'this company'));
     acts.appendChild(more);
     acts.appendChild(H.extLink(H.hnItemUrl(j.id), 'HN comment', 'HN comment from ' + (j.company || 'this company')));
@@ -184,7 +183,7 @@
     var box = $('hn-insight'); box.textContent = '';
     var c = { yes: 0, no: 0, unknown: 0 }, stacks = {}, noStack = 0;
     list.forEach(function (j) {
-      c[rk(j)]++;
+      c[H.remoteKey(j)]++;
       if (!j.stack.length) noStack++;
       j.stack.forEach(function (s) { stacks[s] = (stacks[s] || 0) + 1; });
     });
@@ -321,7 +320,7 @@
     var again = $('hn-stack').querySelector('button[data-k="' + k.replace(/["\\]/g, '\\$&') + '"]'); if (again) again.focus();
   });
   $('hn-list').addEventListener('click', function (e) {
-    var b = e.target.closest('button[data-id]'); if (b) open(parseInt(b.getAttribute('data-id'), 10), b);
+    var b = e.target.closest('a[data-id]'); if (b) { e.preventDefault(); open(parseInt(b.getAttribute('data-id'), 10), b); }
   });
 
   // Links from other pages: ?stack=Python&remote=yes&link=1&q=text&noRole=... (only known values are used)
