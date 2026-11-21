@@ -12,7 +12,8 @@ site/
   careers/               THE deployable folder
     index.html           job explorer (search, filters, detail view)
     insights.html        top technologies, remote share, what posts leave out
-    company.html         placeholder: coming soon (issue 31)
+    company.html         without ?job=: directory of every company with a teaser and a search box;
+                         with ?job=<comment_id>: that company's hiring post, Show HN posts, pulse (issue 41)
     journey.html         placeholder: coming soon (issue 31)
     check.html           placeholder: coming soon (issue 31)
     hn.css, hn.js        shared styles and helpers (text cleaning, safe links, designed states); hn.js holds PATHS
@@ -51,6 +52,37 @@ On the live site these are shared folders at the site root, so the move changes 
 | Search index (careers only) | `careers/pagefind/` | `careers/pagefind/` (replaced on every publish) |
 
 The CSS and JS are loaded by plain `<link>` and `<script>` tags, which cannot read a variable. So in the dev layout they stay in `careers/` (the folder is self-contained and nothing of ours sits in the git-ignored `includes/`), and the copy script moves them to the site's `includes/` as `rw-hn.css` / `rw-hn.js` and rewrites those two tags in the copied pages (`./hn.css` becomes `../includes/rw-hn.css`). It stops with an error if a page has no such tag.
+
+### Company page: data it reads and how to test it
+`company.html` with no `?job=` is the **company directory**: every post from `jobs.json` as a card (company, role, place, technologies, a teaser taken from the text after the post's first line), the best-documented first (a score of stated facts: technologies, role, place, remote, job link, post length; a sort option gives A to Z), 50 at a time, with a search box for name, role, place or technology (`?q=` presets it). It is not meant to repeat the job explorer: the explorer filters posts, this page is the entry to one company. Picking a card opens `company.html?job=<comment_id>`; an invalid or unknown id shows a note above the directory instead of a dead end.
+
+`company.html?job=<comment_id>` reads three files, all through `H.paths.data` (so they move with the one variable):
+
+| File | What | Produced by | Today |
+|---|---|---|---|
+| `jobs.json` | the hiring post | `hnradar fetch-hiring` | exists |
+| `showhn/<comment_id>.json` | Show HN candidates for that job (`hnradar showhn --json` shape, `built/showhn_result.schema.json`) | not saved anywhere yet (gap 3 in issue 32) | missing: the page shows "not produced yet" |
+| `pulse/<story_id>.json` | pros, bugs and asks for one Show HN thread (`planned/pulse.schema.json`) | `hnradar pulse` (issue 13, not built) | missing: the page shows "not produced yet" |
+
+Jobs, Insights and Companies show "Job posts from Hacker News, data last updated: <date>", taken from the `Last-Modified` header of `jobs.json` (the day the file was copied after a crawl); with no header the note is hidden.
+
+Every state is designed: missing file ("not produced yet"), invalid file, no Show HN post (`no_show_hn`), low confidence, "5 of 813" when truncated, `not_enough_signal`. A pulse point without a valid HN comment id is never shown, and the page says how many were hidden (AGENTS.md rule 1).
+
+Real Show HN data: run `uv run python site/tools/build_showhn_data.py` (see the build table below). To test pulse or odd cases with fixtures, copy files from `_private/schema/examples/` into `careers/data/pulse/` (or `showhn/`). `publish-to-site.ps1` publishes only an allowlist: `jobs.json`, `showhn-index.json` and `showhn/<number>.json`. `pulse/<number>.json` is published too, so keep fixtures out of `careers/data/pulse/` and `careers/data/showhn/` (keep them elsewhere, or delete them before publishing).
+
+### Building every data file, in order
+Run from the repo root, in this order. Steps 2 to 5 read the dev copy `site/careers/data/jobs.json`, so the sync comes right after the fetch.
+
+| # | Data | Command | Output | Notes |
+|---|---|---|---|---|
+| 1 | Hiring posts | `uv run hnradar fetch-hiring` | `data/jobs.json` | monthly; network |
+| 2 | Dev copies | `powershell -File site/_private/sync-dev-assets.ps1` | `site/careers/data/jobs.json` and the site's includes and fonts | after every step 1 |
+| 3 | Show HN, one file per job | `uv run python site/tools/build_showhn_data.py` | `site/careers/data/showhn/<comment_id>.json`, `showhn-index.json` | about 2 minutes, network. Skips jobs that already have a current file; `--limit 20` to try, `--refresh` to redo all. A failed lookup is listed and writes nothing |
+| 4 | Pulse, one file per Show HN story | `uv run python site/tools/build_pulse_data.py` | `site/careers/data/pulse/<story_id>.json` | needs a local Ollama model (default `qwen2.5:7b`; `--model qwen2.5:14b` is slower and better) and the network. Picks, for each company, its 2 most commented Show HN stories that link to the company's own domain (`--per-company`, `--name-matches` adds name-only matches), summarises each once, skips stories that already have a file (`--refresh` redoes them, `--limit 5` to try). Several hiring posts of one company count as one company. Only stories saved in the Show HN files are considered (at most 5 per company), so a busy story ranked lower is not summarised. A thread with too few comments writes nothing (a refresh removes the old file); a failed story is listed; it stops after 3 failures in a row. One story by hand: `uv run hnradar pulse <id> --out site/careers/data/pulse/<id>.json` |
+| 5 | Careers search index | `uv run python site/tools/build_careers_index.py` | `site/careers/pagefind/` | after every step 2 (the publish script refuses an older index) |
+| 6 | Publish to the live site | `powershell -File site/_private/publish-to-site.ps1` (dry run), then `-Apply` | the site project | see "Moving the folder" below |
+
+The search index covers hiring posts only. Show HN and pulse files are read per company by `company.html`; the directory uses `showhn-index.json` only to put companies with a Show HN post first. The generated folders are git-ignored; keep test fixtures out of `careers/data/showhn/` and `careers/data/pulse/` because the publish script copies everything there that looks like a real file.
 
 ### Careers search: its own Pagefind index
 The job explorer searches the full text of every post with [Pagefind](https://pagefind.app), the same library and version (1.6.0) as the RawWeights site search, but with a **separate index that holds careers jobs only**.
@@ -109,7 +141,8 @@ Do this when the pages are done, in a separate branch of the site project, and r
 2. Registering the pages (nav entry, `?v=` bump, `sitemap.xml`, `llms.txt`) is done by the site's own job: do not do it by hand here. The site's `pagefind.yml` and `pagefind/` are not touched either: careers has its own index (see above).
 3. Do not `git add -A` in the site project (it has unrelated daily changes); add explicit paths.
 4. Open `/careers/` locally and check the nav, footer, dark mode, search and the JSON paths.
-5. Monthly: `hnradar fetch-hiring`, the sync script, `uv run python site/tools/build_careers_index.py`, then the publish script. The index and `data/jobs.json` always travel together.
+5. What changes when the company page goes live: `company.html` is copied like the other pages and needs no edit, but (a) `publish-to-site.ps1` publishes `data/` only from its allowlist, so only `jobs.json`, `showhn-index.json`, `showhn/<number>.json` and `pulse/<number>.json` go out (never schema examples: delete test fixtures from those folders first); (b) its `<meta name="robots" content="noindex">` should be removed when it is ready to be found, and the page added to the site's sitemap by the site's own job; (c) the "data last updated" date comes from the `Last-Modified` header: on GitHub Pages that is the deploy day of `data/jobs.json`, so deploy it on the day of the crawl or the date will be later than the crawl.
+6. Monthly: `hnradar fetch-hiring`, the sync script, `uv run python site/tools/build_careers_index.py`, then the publish script. The index and `data/jobs.json` always travel together.
 
 The full checklist, with the exact commands and the open decisions (placeholder pages, nav placement, which account pushes), is in `site/_private/MOVE_TO_SITE.md`.
 

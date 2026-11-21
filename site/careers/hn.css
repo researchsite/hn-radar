@@ -71,6 +71,7 @@ dialog.rw-hn-dialog :focus-visible { outline: 2px solid var(--hn-focus); outline
 /* Buttons (ghost pattern from the site; the orange primary is white on #f97316, below AA for small text) */
 .rw-hn-btn { display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 8px 16px; font-family: var(--rw-font-display); font-weight: 600; font-size: 0.875rem;
   border: 1.5px solid var(--rw-border-strong); border-radius: var(--rw-r-full); background: transparent; color: var(--rw-text); cursor: pointer; text-decoration: none; }
+.rw-hn-btn[hidden] { display: none; }
 .rw-hn-btn:hover { background: var(--rw-bg-subtle); }
 .rw-hn-btn--solid { background: var(--rw-text); color: var(--rw-bg); border-color: var(--rw-text); }
 .rw-hn-btn--solid:hover { background: var(--rw-text-muted); border-color: var(--rw-text-muted); }
@@ -136,3 +137,15 @@ dialog.rw-hn-dialog::backdrop { background: rgba(8, 12, 24, 0.6); }
 .rw-hn-table th, .rw-hn-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--rw-border); }
 @media (max-width: 480px) { .rw-hn-barrow { grid-template-columns: 1fr auto; } .rw-hn-barrow .rw-hn-track { grid-column: 1 / -1; order: 3; } }
 .rw-hn-barrow a.rw-hn-barlabel { color: var(--hn-link); }
+
+/* Company page: facts list and the pulse columns (pros, bugs, asks) */
+.rw-hn-facts { margin: 0 0 16px; display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 0.9rem; }
+.rw-hn-facts dt { color: var(--rw-text-muted); }
+.rw-hn-facts dd { margin: 0; overflow-wrap: anywhere; }
+.rw-hn-cols { display: grid; grid-template-columns: 1fr; gap: 16px; }
+@media (min-width: 720px) { .rw-hn-cols { grid-template-columns: repeat(3, 1fr); } }
+.rw-hn-col h3 { margin: 0 0 8px; }
+.rw-hn-points { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.rw-hn-point { background: var(--rw-bg-alt); border: 1px solid var(--rw-border); border-radius: var(--rw-r); padding: 10px 12px; overflow-wrap: anywhere; }
+.rw-hn-point p { margin: 0 0 6px; }
+.rw-hn-point .rw-hn-chips { margin-top: 4px; }

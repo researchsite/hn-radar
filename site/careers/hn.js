@@ -79,10 +79,24 @@
     }
   }
 
+  // When the jobs file was last updated on the server (its Last-Modified header). That is the day the file was deployed,
+  // which equals the crawl day only if it is deployed the same day, so the note says "updated", not "crawled".
+  // Pages that have <p id="hn-crawled" hidden> get it filled; no header, no note.
+  function showCrawled(r) {
+    var node = document.getElementById('hn-crawled'), when = new Date(r.headers.get('Last-Modified') || '');
+    if (!node || isNaN(when.getTime())) return;
+    node.textContent = 'Job posts from Hacker News, data last updated: ' + when.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }) + '.';
+    node.hidden = false;
+  }
+
   // Fetch JSON with a visible failure. validate(data) may throw to reject the shape.
   function loadJSON(path, validate) {
     return fetch(path, { cache: 'no-cache' })
-      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        if (/(^|\/)jobs\.json$/.test(path)) showCrawled(r);
+        return r.json();
+      })
       .then(function (d) { if (validate) validate(d); return d; });
   }
 
@@ -130,7 +144,7 @@
 
   // The page switcher shown on every page. current = file name of this page.
   function pages(current) {
-    var items = [['index.html', 'Jobs'], ['insights.html', 'Insights'], ['company.html', 'Company'], ['journey.html', 'How this was built'], ['check.html', 'Check yours']];
+    var items = [['index.html', 'Jobs'], ['insights.html', 'Insights'], ['company.html', 'Companies'], ['journey.html', 'How this was built'], ['check.html', 'Check yours']];
     var ul = el('ul', { className: 'rw-hn-pages', role: 'list', 'aria-label': 'HN Radar pages' });
     items.forEach(function (it) {
       var a = el('a', { className: 'rw-hn-pagelink', href: './' + it[0] }, it[1]);

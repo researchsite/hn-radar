@@ -230,3 +230,26 @@ def test_pagefind_command_is_pinned_to_the_site_version(monkeypatch, tmp_path):
     monkeypatch.setattr(bci.subprocess, "run", fake_run)
     bci.run_pagefind(tmp_path, tmp_path / "out")
     assert f"pagefind@{bci.PAGEFIND_VERSION}" in seen["command"] and bci.PAGEFIND_VERSION == "1.6.0"
+
+
+def test_failed_swap_keeps_the_working_index(tmp_path, monkeypatch):
+    jobs = write_jobs(tmp_path, [job(1)])
+    out = tmp_path / "pagefind"
+    out.mkdir()
+    (out / "old.txt").write_text("working index", encoding="utf-8")
+    real_replace = Path.replace
+
+    def failing_replace(self, target):
+        if self.name == "pagefind.new":
+            raise OSError("locked")
+        return real_replace(self, target)
+
+    monkeypatch.setattr(Path, "replace", failing_replace)
+    with pytest.raises(OSError):
+        bci.build(jobs, out, runner=fake_runner([]))
+    assert (out / "old.txt").read_text(encoding="utf-8") == "working index"
+
+
+def test_non_positive_comment_id_is_refused(tmp_path):
+    with pytest.raises(bci.IndexBuildError, match="positive"):
+        bci.load_jobs(write_jobs(tmp_path, [job(0)]))

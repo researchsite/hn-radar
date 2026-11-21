@@ -68,6 +68,8 @@ def load_jobs(path: Path) -> list[Job]:
 
     seen: set[int] = set()
     for job in jobs:
+        if job.comment_id <= 0:  # the page ignores such a record, so a search hit on it would show nothing
+            raise IndexBuildError(f"comment_id {job.comment_id} in {path} is not a positive number")
         if job.comment_id in seen:
             raise IndexBuildError(f"duplicate comment_id {job.comment_id} in {path}")
         seen.add(job.comment_id)
@@ -143,8 +145,18 @@ def build(
         count = indexed_page_count(staging)
         if count != len(jobs):
             raise IndexBuildError(f"pagefind indexed {count} pages for {len(jobs)} jobs: index not replaced")
-        shutil.rmtree(out_dir, ignore_errors=True)
-        staging.replace(out_dir)
+        # keep the working index until the new one is in place; put it back if the swap fails
+        backup = out_dir.with_name(out_dir.name + ".old")
+        shutil.rmtree(backup, ignore_errors=True)
+        if out_dir.exists():
+            out_dir.replace(backup)
+        try:
+            staging.replace(out_dir)
+        except OSError:
+            if backup.exists() and not out_dir.exists():
+                backup.replace(out_dir)
+            raise
+        shutil.rmtree(backup, ignore_errors=True)
     finally:
         shutil.rmtree(staging, ignore_errors=True)
     return count

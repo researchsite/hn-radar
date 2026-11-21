@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Company page | HN Radar | RawWeights</title>
-  <meta name="description" content="What a company's own users said on Hacker News, with links to every comment. Coming soon.">
+  <meta name="description" content="A company's hiring post on Hacker News, its Show HN posts, and what their users said, with a link to every comment.">
   <meta name="author" content="RawWeights">
   <meta name="robots" content="noindex">
   <link rel="canonical" href="https://rawweights.com/careers/company.html">
@@ -22,18 +22,362 @@
 
 <div id="content" class="rw-hn-wrap">
   <div id="hn-pages"></div>
-  <h1>Company page</h1>
-  <div class="rw-hn-state" role="status">
-    <strong>Coming soon</strong>
-    <span>This page will show a company's hiring post, its Show HN thread, and what its users said: what they liked, what broke and what they asked for. Every point will link to the Hacker News comment it came from. It is not built yet.</span>
-    <div><a class="rw-hn-btn" href="./index.html">Browse the jobs</a></div>
-  </div>
+  <p class="rw-hn-small" id="co-back" hidden><a class="rw-hn-link" href="./company.html">&larr; All companies</a></p>
+  <h1 id="co-title">Companies hiring</h1>
+  <p class="rw-hn-lead" id="co-lead">Pick a company to see its hiring post, its Show HN posts and what their users said. Every point links to the Hacker News comment it came from.</p>
+  <p class="rw-hn-small rw-hn-muted" id="hn-crawled" hidden></p>
+
+  <div id="co-state" class="rw-hn-state" role="status" hidden></div>
+  <div id="co-out" hidden></div>
 </div>
 
 <div id="rw-footer" data-linkedin="" data-related='[]'></div>
 <script src="../includes/rw-footer.js?v=20261107"></script>
 
 <script src="./hn.js"></script>
-<script>document.getElementById('hn-pages').appendChild(window.HN.pages('company.html'));</script>
+<script>
+(function () {
+  'use strict';
+  var H = window.HN, el = H.el, clean = H.clean;
+  var $ = function (id) { return document.getElementById(id); };
+  document.getElementById('hn-pages').appendChild(H.pages('company.html'));
+
+  var KINDS = [['pro', 'What they like'], ['bug', 'What broke'], ['ask', 'What they ask for']];
+
+  function section(title, intro) {
+    var s = el('section', { className: 'rw-hn-section rw-hn-panel' });
+    s.appendChild(el('h2', {}, title));
+    if (intro) s.appendChild(el('p', { className: 'rw-hn-muted rw-hn-small' }, intro));
+    return s;
+  }
+  function noteBox(text, warn) { return el('p', { className: 'rw-hn-note' + (warn ? ' rw-hn-note--warn' : '') }, text); }
+  // A designed state inside a section: a title and a sentence, never a bare error
+  function stateBox(title, text) { var d = el('div', { className: 'rw-hn-state' }); d.appendChild(el('strong', {}, title)); d.appendChild(el('span', {}, text)); return d; }
+  function isMissing(e) { return e && e.message === 'HTTP 404'; }
+  function int(n) { return typeof n === 'number' && isFinite(n) && Math.floor(n) === n; }
+
+  // ---- 1. the hiring post ----
+  function renderPost(j) {
+    var s = section('The hiring post', 'Parsed from the post by a program; the fields can be wrong. The post and the HN comment are the source of truth.');
+    var dl = el('dl', { className: 'rw-hn-facts' });
+    function row(k, v) { dl.appendChild(el('dt', {}, k)); dl.appendChild(el('dd', {}, v)); }
+    row('Role', j.role || el('span', { className: 'rw-hn-muted' }, 'not stated'));
+    row('Location', j.location || el('span', { className: 'rw-hn-muted' }, 'not stated'));
+    row('Remote', H.remoteLabel({ remote: j.remote }));
+    var tech = j.stack.length ? el('ul', { className: 'rw-hn-chips' }, j.stack.map(function (t) { return el('li', {}, el('span', { className: 'rw-hn-tag' }, t)); })) : el('span', { className: 'rw-hn-muted' }, 'none recognised');
+    row('Technologies', tech);
+    row('Original', H.extLink(H.hnItemUrl(j.id), 'HN comment ' + j.id, 'HN comment ' + j.id));
+    row('Job link', j.url ? H.extLink(j.url.href, j.url.host, 'Job link ' + j.url.host) : el('span', { className: 'rw-hn-muted' }, 'no link in the post'));
+    row('Job explorer', el('a', { className: 'rw-hn-link', href: './index.html#c' + j.id }, 'Open this post in the explorer'));
+    s.appendChild(dl);
+    // closed is evidence, not status: only said when the poster's own reply is cited
+    if (j.closed && H.hnItemUrl(j.closedId)) {
+      s.appendChild(el('p', { className: 'rw-hn-note rw-hn-note--warn' }, ['The poster\'s own reply says this job may be closed: ', H.extLink(H.hnItemUrl(j.closedId), 'HN comment ' + j.closedId, 'HN comment ' + j.closedId), '. Not seeing this notice does not mean the job is open.']));
+    }
+    s.appendChild(el('h3', {}, 'What the post says'));
+    s.appendChild(j.text ? el('p', { className: 'rw-hn-post' }, j.text) : el('p', { className: 'rw-hn-muted' }, 'The post has no text.'));
+    return s;
+  }
+
+  // ---- 2. Show HN candidates ----
+  function checkShowHN(d, company) {
+    if (!d || typeof d !== 'object' || Array.isArray(d)) throw new Error('not an object');
+    // the lookup must be for this company: a file saved under the wrong job id would show another company's stories
+    if (typeof d.query !== 'string' || clean(d.query).toLowerCase() !== clean(company).toLowerCase()) throw new Error('query');
+    if (!int(d.total_hits) || d.total_hits < 0) throw new Error('total_hits');
+    if (!Array.isArray(d.candidates)) throw new Error('candidates');
+    // an entry without a valid story id and title means the file is broken, not that there are no stories
+    d.candidates.forEach(function (c) {
+      if (!c || typeof c !== 'object' || !H.hnItemUrl(c.story_id) || typeof c.title !== 'string') throw new Error('candidate');
+    });
+  }
+  function renderShowHN(d, company, pulseHost) {
+    var s = section('Show HN posts', 'Stories on Hacker News whose title mentions the company. A story that links to the company\'s own domain is a stronger match than a name match.');
+    var cands = (d.candidates || []).filter(function (c) { return c && typeof c === 'object' && H.hnItemUrl(c.story_id) && typeof c.title === 'string'; });
+    if (!cands.length) {
+      s.appendChild(stateBox('No Show HN post found', 'Nothing on Hacker News matched "' + clean(d.query || company) + '" as a Show HN post. This is a normal result: not every company has one.'));
+      pulseHost.appendChild(stateBox('Nothing to summarise', 'The pulse is built from a Show HN thread, and none was found for this company.'));
+      return s;
+    }
+    if (d.low_confidence) {
+      var why = d.platform_domain === true ? 'The company\'s link points to a shared host (such as GitHub or a job board), so a story on that host says little about the company.'
+        : typeof d.domain === 'string' && d.domain ? 'None of these stories links to ' + clean(d.domain) + '.'
+        : 'No company domain was known, so stories could only be matched by name.';
+      s.appendChild(noteBox('Low confidence: ' + why + ' They may be about a different company with a similar name. Check each one before relying on it.', true));
+    }
+    var total = d.total_hits;
+    s.appendChild(el('p', { className: 'rw-hn-count' }, d.truncated || total > cands.length ? 'Showing ' + cands.length + ' of ' + total + ' matching stories' : cands.length + (cands.length === 1 ? ' story' : ' stories')));
+    var ul = el('ul', { className: 'rw-hn-list' });
+    cands.forEach(function (c) {
+      var li = el('li', { className: 'rw-hn-item' });
+      li.appendChild(el('h3', {}, H.extLink(H.hnItemUrl(c.story_id), clean(c.title), 'Hacker News story ' + c.story_id)));
+      var meta = [int(c.points) ? c.points + ' points' : null, int(c.num_comments) ? c.num_comments + ' comments' : null].filter(Boolean).join(' · ');
+      var checked = typeof d.domain === 'string' && d.domain && d.platform_domain !== true;
+      var kids = [c.domain_match === true && checked ? el('span', { className: 'rw-hn-badge rw-hn-badge--note' }, 'Links to the company domain')
+        : el('span', { className: 'rw-hn-badge rw-hn-badge--warn' }, checked ? 'Name match only' : 'Matched by name, domain not checked')];
+      if (meta) kids.push(el('span', { className: 'rw-hn-meta' }, meta));
+      var u = H.safeUrl(c.url); if (u) kids.push(H.extLink(u.href, u.host, 'Story link ' + u.host));
+      li.appendChild(el('p', { className: 'rw-hn-actions' }, kids));
+      ul.appendChild(li);
+    });
+    s.appendChild(ul);
+
+    // the pulse: only stories that have a pulse file are offered; a picker only when there is more than one
+    pulseHost.appendChild(el('p', { className: 'rw-hn-muted rw-hn-small' }, 'What the people on a Show HN thread said, grouped into what they like, what broke and what they asked for.'));
+    var body = el('div', { id: 'co-pulse-body' });
+    pulseHost.appendChild(body);
+    body.appendChild(el('p', { className: 'rw-hn-muted' }, 'Looking for pulse data...'));
+    Promise.all(cands.map(probePulse)).then(function (found) {
+      body.textContent = '';
+      var have = found.filter(function (f) { return f.data; }), broken = found.filter(function (f) { return f.invalid; }).length;
+      // domain-matched stories first, then the order of the list
+      have.sort(function (a, b) { return (b.cand.domain_match === true) - (a.cand.domain_match === true); });
+      if (!have.length) {
+        body.appendChild(stateBox('No pulse', broken ? 'The pulse file of ' + (broken === 1 ? 'one of these stories' : broken + ' of these stories') + ' could not be read, so nothing is shown from it.'
+          : 'None of these stories has a pulse. A pulse is built per story, and only for threads with enough comments.'));
+        return;
+      }
+      var out = el('div');
+      if (have.length > 1) {
+        var sel = el('select', { id: 'co-pulse-pick' });
+        have.forEach(function (f) { sel.appendChild(el('option', { value: String(f.cand.story_id) }, clean(f.cand.title).slice(0, 90))); });
+        sel.addEventListener('change', function () {
+          out.textContent = ''; out.appendChild(renderPulse(have.filter(function (f) { return String(f.cand.story_id) === sel.value; })[0].data));
+        });
+        body.appendChild(el('div', { className: 'rw-hn-field', style: 'max-width:520px;margin-bottom:12px' }, [el('label', { 'for': 'co-pulse-pick' }, 'Pulse for'), sel]));
+      } else {
+        body.appendChild(el('p', { className: 'rw-hn-small' }, ['Pulse for: ', el('strong', {}, clean(have[0].cand.title).slice(0, 120))]));
+      }
+      body.appendChild(out); out.appendChild(renderPulse(have[0].data));
+      if (broken) body.appendChild(noteBox(broken + (broken === 1 ? ' pulse file' : ' pulse files') + ' for other stories could not be read and ' + (broken === 1 ? 'is' : 'are') + ' not shown.', true));
+    });
+    return s;
+  }
+
+  // ---- 3. pulse (pros, bugs, asks) ----
+  function checkPulse(d) {
+    if (!d || typeof d !== 'object' || Array.isArray(d)) throw new Error('not an object');
+    // `hnradar pulse` writes no `status`: a file with items is a result, and a thread with too few comments writes no file
+    if (d.status !== undefined && ['ok', 'not_enough_signal'].indexOf(d.status) === -1) throw new Error('status');
+    if (!Array.isArray(d.items)) throw new Error('items');
+    // an item of an unknown kind or without text means a broken file, not a thread with nothing in it
+    d.items.forEach(function (it) {
+      if (!it || typeof it !== 'object' || ['pro', 'bug', 'ask'].indexOf(it.kind) === -1 || typeof it.summary !== 'string') throw new Error('item');
+    });
+  }
+  function renderPulse(d) {
+    var wrap = el('div');
+    if (d.status === 'not_enough_signal') {
+      wrap.appendChild(stateBox('Not enough signal', 'This thread has ' + (int(d.thread_comment_count) ? d.thread_comment_count : 'too few') + ' comments, which is not enough to say what people think. Nothing is guessed.'));
+      return wrap;
+    }
+    if (int(d.comments_used) && int(d.comments_total) && d.comments_used < d.comments_total) {
+      wrap.appendChild(noteBox('Based on ' + d.comments_used + ' of the ' + d.comments_total + ' top-level comments: the thread was cut before it was summarised.', true));
+    }
+    var dropped = 0, cols = el('div', { className: 'rw-hn-cols' });
+    KINDS.forEach(function (k) {
+      var col = el('div', { className: 'rw-hn-col' });
+      col.appendChild(el('h3', {}, k[1]));
+      var ul = el('ul', { className: 'rw-hn-points' }), n = 0;
+      d.items.forEach(function (it) {
+        if (!it || it.kind !== k[0] || typeof it.summary !== 'string') return;
+        var ids = (Array.isArray(it.comment_ids) ? it.comment_ids : []).filter(function (id) { return int(id) && H.hnItemUrl(id); });
+        if (!ids.length) { dropped++; return; }   // a point with no source comment is never shown (AGENTS.md rule 1)
+        var li = el('li', { className: 'rw-hn-point' });
+        li.appendChild(el('p', {}, clean(it.summary)));
+        li.appendChild(H.citations(ids));
+        ul.appendChild(li); n++;
+      });
+      col.appendChild(n ? ul : el('p', { className: 'rw-hn-muted rw-hn-small' }, 'Nothing in this thread.'));
+      cols.appendChild(col);
+    });
+    wrap.appendChild(cols);
+    if (dropped) wrap.appendChild(noteBox(dropped + (dropped === 1 ? ' point is' : ' points are') + ' not shown because ' + (dropped === 1 ? 'it has' : 'they have') + ' no source comment on Hacker News.', true));
+    var story = int(d.story_id) && H.hnItemUrl(d.story_id) ? H.extLink(H.hnItemUrl(d.story_id), 'the Show HN thread', 'Show HN thread ' + d.story_id) : 'the thread';
+    wrap.appendChild(el('p', { className: 'rw-hn-note' }, ['Summaries were written by a model' + (typeof d.model === 'string' && clean(d.model) ? ' (' + clean(d.model) + ')' : '') + ' and can be wrong. The comments are the source: open them in ', story, '.']));
+    return wrap;
+  }
+  // Look for the pulse file of one story. {cand, data} when it is valid, {cand, invalid: true} when the file is there but
+  // broken (or saved under the wrong thread), {cand} when there is no file.
+  function probePulse(cand) {
+    var storyId = cand.story_id;
+    return H.loadJSON(H.paths.data + 'pulse/' + storyId + '.json', function (d) {
+      checkPulse(d);
+      if (!int(d.story_id) || d.story_id !== storyId) throw new Error('story_id');   // missing, or saved under the wrong thread
+    }).then(function (d) { return { cand: cand, data: d }; }, function (e) {
+      return isMissing(e) ? { cand: cand } : { cand: cand, invalid: true };
+    });
+  }
+
+  // ---- page ----
+  function prep(j) {
+    return { id: parseInt(j.comment_id, 10), company: clean(j.company), role: clean(j.role), location: clean(j.location),
+      remote: j.remote === true ? true : j.remote === false ? false : null,
+      stack: (Array.isArray(j.stack) ? j.stack : []).map(clean).filter(Boolean), url: H.safeUrl(j.url), text: H.cleanBlock(j.raw_text),
+      closed: j.closed === true, closedId: j.closed_comment_id };
+  }
+  function show(title, text, action) { var st = $('co-state'); H.state(st, title, text, action); $('co-out').hidden = true; }
+
+  // ---- company directory (no job in the address): every post with a teaser, searchable ----
+  var DIR_PAGE = 50, TEASER = 170;
+  // How much we know about a company, so the best-documented come first (this page is not a second job list).
+  // One point per stated fact, up to 6 for technologies and 3 for a long post. Show HN adds the most: 8 plus one per
+  // story that links to the company's own domain (up to 3); a story found by name only adds 1, because it may be
+  // about another company. The summary comes from data/showhn-index.json (tools/build_showhn_data.py); without it
+  // only the post facts count.
+  var showIndex = {};
+  function detailScore(j) {
+    var s = showIndex[j.id] || { strong: 0, found: 0 };
+    return Math.min(j.stack.length, 6) + (j.role ? 1 : 0) + (j.location ? 1 : 0) + (j.remote !== null ? 1 : 0)
+      + (j.url ? 1 : 0) + Math.min(3, Math.floor(j.text.length / 500))
+      + (s.strong > 0 ? 8 + Math.min(s.strong, 3) : s.found > 0 ? 1 : 0);
+  }
+  // the first line of a post usually repeats company, role and place, so the teaser is taken from what follows it;
+  // a first line that does not name the company (for example an update or a closing notice) is real content and stays
+  function teaser(text, company) {
+    var lines = text.split('\n').map(function (l) { return l.trim(); }).filter(Boolean);
+    var first = lines[0] || '', notice = /\b(update|edit|closed|no longer|filled|not hiring)\b/i.test(first);
+    var header = lines.length > 1 && !notice && ((first.match(/\|/g) || []).length >= 2 || (company && first.toLowerCase().indexOf(company.toLowerCase()) === 0));
+    var rest = (header ? lines.slice(1).join(' ') : lines.join(' ')).replace(/\s+/g, ' ');
+    return rest.length > TEASER ? rest.slice(0, TEASER).replace(/\s+\S*$/, '') + '\u2026' : rest;
+  }
+  function renderDirectory(jobs, notice, presetQuery, indexProblem) {
+    document.title = 'Companies | HN Radar | RawWeights';
+    $('co-title').textContent = 'Companies hiring';
+    $('co-lead').textContent = 'Pick a company to see its hiring post, its Show HN posts and what their users said. Every point links to the Hacker News comment it came from.';
+    $('co-back').hidden = true;
+    var out = $('co-out'); out.textContent = '';
+    if (notice) out.appendChild(noteBox(notice, true));
+    if (indexProblem) {
+      out.appendChild(noteBox(indexProblem === 'missing'
+        ? 'The Show HN summary has not been produced yet, so companies are ordered by what their post says, not by Show HN posts.'
+        : 'The Show HN summary could not be read, so companies are ordered by what their post says, not by Show HN posts.', true));
+    }
+    var items = jobs.map(function (j) {
+      j.teaser = teaser(j.text, j.company);
+      j.hay = (j.company + ' ' + j.role + ' ' + j.location + ' ' + j.stack.join(' ')).toLowerCase();
+      j.detail = detailScore(j);
+      return j;
+    });
+    var byName = function (a, b) { return (a.company || '\uffff').localeCompare(b.company || '\uffff', undefined, { sensitivity: 'base' }); };
+    var order = {
+      detail: function (a, b) { return b.detail - a.detail || byName(a, b); },
+      name: byName
+    };
+    items.sort(order.detail);
+    var limit = DIR_PAGE;
+    var sortSel = el('select', { id: 'co-sort' }, [el('option', { value: 'detail' }, 'Most detail first'), el('option', { value: 'name' }, 'Company name, A to Z')]);
+    var input = el('input', { id: 'co-q', type: 'search', autocomplete: 'off', placeholder: 'for example: Acme, rust, Berlin' });
+    if (presetQuery) input.value = clean(presetQuery).slice(0, 80);
+    out.appendChild(el('div', { className: 'rw-hn-panel', role: 'search', 'aria-label': 'Find a company' },
+      el('div', { className: 'rw-hn-row' }, [
+        el('div', { className: 'rw-hn-field rw-hn-grow' }, [el('label', { 'for': 'co-q' }, 'Find a company by name, role, place or technology'), input]),
+        el('div', { className: 'rw-hn-field' }, [el('label', { 'for': 'co-sort' }, 'Order'), sortSel])])));
+    var count = el('p', { className: 'rw-hn-count', role: 'status', 'aria-live': 'polite' });
+    var none = el('div', { className: 'rw-hn-state', role: 'status' });
+    var list = el('ul', { className: 'rw-hn-list' });
+    var more = el('button', { type: 'button', className: 'rw-hn-btn', id: 'co-more' });
+    out.appendChild(count); out.appendChild(none); out.appendChild(list);
+    out.appendChild(el('p', { style: 'text-align:center;margin-top:16px' }, more));
+
+    function card(j) {
+      var href = './company.html?job=' + j.id, name = j.company || 'this company';
+      var li = el('li', { className: 'rw-hn-item' });
+      li.appendChild(el('h2', {}, el('a', { className: 'rw-hn-link', href: href }, j.company || 'Company not stated')));
+      li.appendChild(el('p', { className: 'rw-hn-meta' }, [j.role || 'Role not stated', j.location || 'Location not stated', H.remoteLabel({ remote: j.remote })].join(' \u00b7 ')));
+      if (j.stack.length) {
+        var chips = el('ul', { className: 'rw-hn-chips', 'aria-label': 'Technologies' });
+        j.stack.slice(0, 5).forEach(function (t) { chips.appendChild(el('li', {}, el('span', { className: 'rw-hn-tag' }, t))); });
+        if (j.stack.length > 5) chips.appendChild(el('li', {}, el('span', { className: 'rw-hn-tag rw-hn-tag--soft' }, '+' + (j.stack.length - 5) + ' more')));
+        li.appendChild(chips);
+      }
+      var sh = showIndex[j.id];
+      if (sh && sh.strong > 0) {
+        li.appendChild(el('p', {}, el('span', { className: 'rw-hn-badge rw-hn-badge--note' }, sh.strong === 1 ? '1 Show HN post links to the company' : sh.strong + ' Show HN posts link to the company')));
+      }
+      if (j.closed && H.hnItemUrl(j.closedId)) {
+        li.appendChild(el('p', { className: 'rw-hn-note rw-hn-note--warn' }, ['The poster\'s own reply says this job may be closed: ', H.extLink(H.hnItemUrl(j.closedId), 'HN comment ' + j.closedId, 'HN comment ' + j.closedId)]));
+      }
+      if (j.teaser) li.appendChild(el('p', { className: 'rw-hn-snippet' }, j.teaser));
+      li.appendChild(el('p', { className: 'rw-hn-actions' }, [
+        el('a', { className: 'rw-hn-btn', href: href, 'aria-label': 'Company page for ' + name }, 'Open company page'),
+        H.extLink(H.hnItemUrl(j.id), 'HN comment', 'HN comment from ' + name)]));
+      return li;
+    }
+    function draw() {
+      var q = clean(input.value).toLowerCase(), words = q ? q.split(' ') : [];
+      var hit = items.filter(function (j) { return words.every(function (w) { return j.hay.indexOf(w) !== -1; }); });
+      list.textContent = '';
+      hit.slice(0, limit).forEach(function (j) { list.appendChild(card(j)); });
+      var shown = Math.min(limit, hit.length);
+      count.textContent = shown < hit.length ? 'Showing ' + shown + ' of ' + hit.length + (q ? ' matches' : ' posts')
+        : hit.length + (q ? ' of ' + items.length + ' posts match' : ' posts');
+      more.hidden = hit.length <= limit; more.textContent = 'Show ' + Math.min(DIR_PAGE, hit.length - limit) + ' more';
+      none.hidden = hit.length > 0; list.hidden = hit.length === 0;
+      if (!hit.length) { none.textContent = ''; none.appendChild(el('strong', {}, 'No company matches')); none.appendChild(el('span', {}, 'Try fewer words, or just part of a name.')); }
+    }
+    var timer;
+    input.addEventListener('input', function () { clearTimeout(timer); timer = setTimeout(function () { limit = DIR_PAGE; draw(); }, 120); });
+    more.addEventListener('click', function () { limit += DIR_PAGE; draw(); });
+    sortSel.addEventListener('change', function () { items.sort(order[sortSel.value]); limit = DIR_PAGE; draw(); });
+    draw();
+  }
+
+  // ---- one company: the hiring post, Show HN posts, pulse ----
+  function renderJob(job, id) {
+    $('co-back').hidden = false;
+    $('co-title').textContent = job.company || 'Company not stated';
+    $('co-lead').textContent = 'The hiring post, the company\'s Show HN posts, and what the people on those threads said. Every point links to the Hacker News comment it came from.';
+    document.title = (job.company || 'Company') + ' | HN Radar | RawWeights';
+    var out = $('co-out'); out.textContent = '';
+    out.appendChild(renderPost(job));
+    var showSec = section('Show HN posts'), pulseSec = section('Pulse');
+    out.appendChild(showSec); out.appendChild(pulseSec);
+    $('co-state').hidden = true; out.hidden = false;
+    H.loadJSON(H.paths.data + 'showhn/' + id + '.json', function (d) { checkShowHN(d, job.company); }).then(function (d) {
+      var host = el('div'); var built = renderShowHN(d, job.company, host);
+      showSec.replaceWith(built); pulseSec.appendChild(host);
+    }).catch(function (e) {
+      showSec.appendChild(isMissing(e)
+        ? stateBox('Show HN data not produced yet', 'The Show HN lookup for this company has not been saved yet, so no stories are shown. This is not an error with the page.')
+        : stateBox('The Show HN data could not be read', 'The file for this job is not valid, so nothing is shown from it.'));
+      pulseSec.appendChild(stateBox('Nothing to summarise yet', 'The pulse is built from a Show HN thread, and there is no Show HN data for this job yet.'));
+    });
+  }
+
+  function load() {
+    var params = new URLSearchParams(location.search), raw = params.get('job');
+    var id = raw !== null && H.hnItemUrl(raw) ? parseInt(raw, 10) : null;
+    show('Loading', 'Reading the data file.');
+    H.loadJSON(H.paths.data + 'jobs.json', H.jobsList).then(function (data) {
+      var posts = H.jobsList(data);
+      if (!posts.length) { show('No jobs in the data yet', 'The jobs file is there but has no posts. It is filled when the monthly thread is fetched.'); return; }
+      var notice = null;
+      if (id) {
+        var j = posts.filter(function (x) { return parseInt(x.comment_id, 10) === id; })[0];
+        if (j) { renderJob(prep(j), id); return; }
+        notice = 'No post with the id ' + id + ' is in the jobs file. It may be from another month. Pick a company below.';
+      } else if (raw !== null) {
+        notice = 'The address does not hold a valid job id. Pick a company below.';
+      }
+      // the Show HN summary only orders the list: if it is missing or broken the directory still works
+      return H.loadJSON(H.paths.data + 'showhn-index.json', function (d) {
+        if (!d || typeof d !== 'object' || Array.isArray(d)) throw new Error('not an object');
+      }).then(function (d) { return { idx: d }; }, function (e) { return { idx: {}, problem: isMissing(e) ? 'missing' : 'invalid' }; }).then(function (res) {
+        var idx = res.idx;
+        Object.keys(idx).forEach(function (k) {
+          var v = idx[k];
+          if (v && int(v.strong) && int(v.found) && v.strong >= 0 && v.found >= v.strong) showIndex[k] = { strong: v.strong, found: v.found };
+        });
+        $('co-state').hidden = true; $('co-out').hidden = false;
+        renderDirectory(posts.map(prep), notice, params.get('q'), res.problem);
+      });
+    }).catch(function () {
+      show('The jobs data could not be loaded', 'The file data/jobs.json is missing or is not a list of posts.', { label: 'Try again', run: load });
+    });
+  }
+  load();
+})();
+</script>
 </body>
 </html>

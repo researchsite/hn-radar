@@ -30,6 +30,7 @@
   <div id="hn-pages"></div>
   <h1>Who is hiring, searchable</h1>
   <p class="rw-hn-lead">Posts from the Hacker News "Who is hiring?" thread, parsed into fields. Parsing is automatic and can be wrong, so every row links to the original comment.</p>
+  <p class="rw-hn-small rw-hn-muted" id="hn-crawled" hidden></p>
 
   <div class="rw-hn-panel" role="search" aria-label="Filter jobs">
     <div class="rw-hn-row">
@@ -283,6 +284,7 @@
     row('Technologies', tech);
     row('Job link', j.url ? H.extLink(j.url.href, j.url.host, 'Job link ' + j.url.host) : el('span', { className: 'rw-hn-muted' }, 'No link in the post'));
     row('Original', H.extLink(H.hnItemUrl(j.id), 'HN comment ' + j.id, 'HN comment ' + j.id));
+    row('Company page', el('a', { className: 'rw-hn-link', href: './company.html?job=' + j.id }, 'Show HN posts and what their users said'));
     body.appendChild(dl);
 
     body.appendChild(el('h3', {}, 'What the post says'));
