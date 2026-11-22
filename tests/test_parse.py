@@ -254,3 +254,84 @@ def test_resume_labels_need_the_relocate_line():
 @pytest.mark.parametrize("text", ["", "\n", "   ", "https://example.com"])
 def test_empty_and_link_only_posts_do_not_crash(text):
     assert not is_candidate_profile(text)
+
+
+# ---- issue 61: gaps Qodo found on the data refresh ----
+
+JOB_SEEKING_WORK_HEADER = (  # 50495944: a person offering themselves, in the hiring thread
+    "SEEKING FREELANCE - Egypt (UTC+2, full EU/UK overlap) - Remote\n"
+    "Senior Full-Stack & Creative Frontend Engineer (4+ yrs). I architect Next.js/TypeScript and Node systems.\n"
+    "Portfolio: https://example.com"
+)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [JOB_SEEKING_WORK_HEADER, "SEEKING WORK | Remote | Python developer\nI build APIs.", "Seeking employment - Berlin\nBackend engineer, 6 yrs."],
+    ids=["seeking-freelance-header", "seeking-work-pipe", "seeking-employment"],
+)
+def test_a_seeking_work_header_is_a_candidate_profile(text):
+    assert is_candidate_profile(text)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Seeking freelance developers for a six-week build\nWe are a small studio.",
+        "SEEKING FREELANCE DEVOPS ENGINEERS | Remote\nOur team runs on GCP.",
+        "Seeking work-from-home friendly engineers | Acme\nWe're hiring.",
+        "SEEKING FREELANCE - Egypt | Acme is hiring a freelance designer\nWe are hiring.",
+        "Seeking a senior engineer | Acme | Berlin",
+    ],
+    ids=["plural-role", "plural-role-caps", "work-from-home", "hire-cue-in-post", "seeking-a-role"],
+)
+def test_hiring_posts_that_start_with_seeking_stay(text):
+    assert not is_candidate_profile(text)
+
+
+@pytest.mark.parametrize(
+    "first_line, role",
+    [
+        ("Bechtel | Penetration Tester | Remote or onsite (US) | Full-time", "Penetration Tester"),
+        ("Native | Founding Builder-in-Residence | San Francisco or London | REMOTE or ONSITE", "Founding Builder-in-Residence"),
+        ("Genentech | 2027 Interns | PD Data Sciences | ONSITE (South San Francisco, CA USA)", "2027 Interns"),
+        ("Acme | QA Tester | Berlin", "QA Tester"),
+    ],
+)
+def test_role_titles_that_the_word_list_used_to_miss(first_line, role):
+    assert parse_comment(1, first_line).role == role
+
+
+def test_remotely_counts_as_remote():
+    assert parse_comment(1, "New Product | Full Stack Engineer | Meet In The Bay Area / Work Remotely").remote is True
+
+
+def test_remote_work_not_available_is_still_not_remote():
+    assert parse_comment(1, "Foo | Engineer | Berlin<p>Remote work is not available").remote is False
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Seeking freelance Rails developers\nWe are a small studio.",
+        "Seeking freelance senior Rails developer | Remote\nPlease email us.",
+        "Seeking work for our client's project | Acme",
+    ],
+    ids=["modified-plural", "modified-singular", "work-for-client"],
+)
+def test_seeking_freelance_with_a_role_after_it_is_a_job(text):
+    assert not is_candidate_profile(text)
+
+
+def test_negated_remotely_is_not_remote():
+    for text in ("We can&#x27;t hire remotely", "Not remotely, sorry", "We do not hire anyone remotely at the moment"):
+        assert parse_comment(1, f"Foo | Engineer | Berlin<p>{text}").remote is False, text
+
+
+def test_a_product_description_is_not_a_role():
+    assert parse_comment(1, "Acme | Form builder SaaS | Berlin").role is None
+
+
+def test_a_positive_sentence_with_cant_and_remotely_is_still_remote():
+    for text in ("We can&#x27;t wait to work remotely with you", "You won&#x27;t regret working remotely with us"):
+        assert parse_comment(1, f"Foo | Engineer | Berlin<p>{text}").remote is True, text
