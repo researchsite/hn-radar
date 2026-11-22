@@ -148,7 +148,7 @@ def run_radar(
     # 2. match: as many matches as the search may look at (depth); the stages below take them in rank order
     t = clock()
     try:
-        matches = top_matches(profile, jobs, max(depth, limit))
+        matches = top_matches(profile, jobs, depth)  # depth is a hard cap: a smaller depth than limit means fewer drafts, not more lookups
     except STEP_ERRORS as exc:
         return failed("match", exc, t)
     record("match", "ok", t, f"{len(matches)} of {len(jobs)} jobs")
@@ -254,7 +254,7 @@ def run_radar(
     except _StepFailed as exc:
         for name in ("showhn", "pulse", "draft")[: ("showhn", "pulse", "draft").index(exc.step)]:  # the stages that finished
             record_total(name)
-        return failed(exc.step, exc.cause, exc.started)
+        return failed(exc.step, exc.cause, exc.started - spent[exc.step])  # the failed step's time covers its whole stage
 
     for name in ("showhn", "pulse", "draft"):
         record_total(name)
@@ -262,7 +262,7 @@ def run_radar(
     written = counts["draft"]
     status = "ok" if written == len(companies) else "partial"
     warnings = [] if status == "ok" else [f"{len(companies) - written} of {len(companies)} companies have no draft: see each company's note."]
-    if written < limit and len(matches) == max(depth, limit):  # rule 6: a cut search is not a complete one
-        warnings.append(f"Only the {len(matches)} best matches were checked (depth {max(depth, limit)}); lower-ranked matches were not.")
+    if written < limit and len(matches) == depth:  # rule 6: a cut search is not a complete one
+        warnings.append(f"Only the {len(matches)} best matches were checked (depth {depth}); lower-ranked matches were not.")
     return RadarResult(username=profile.username, generated_at=_now(), status=status, steps=steps, profile_summary=summary,
                        companies=companies, warnings=warnings)

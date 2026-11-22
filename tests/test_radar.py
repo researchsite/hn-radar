@@ -389,8 +389,18 @@ def test_a_failure_in_a_later_batch_keeps_the_finished_steps_and_shows_no_compan
     assert [s.name for s in result.steps] == ["fingerprint", "match", "showhn"] and result.steps[-1].status == "failed"
 
 
-def test_depth_is_never_below_limit(tmp_path):
-    assert len(go(tmp_path, many(12), limit=5, depth=1).companies) == 5
+def test_depth_is_a_hard_cap_even_below_limit(tmp_path):
+    fake = Hn()
+    result = go(tmp_path, many(12), limit=5, depth=2, hn_fake=fake)
+    assert len(result.companies) == 2 and len(fake.searches) == 2
+    assert any("Only the 2 best matches were checked (depth 2)" in w for w in result.warnings)
+
+
+def test_a_failed_step_reports_the_time_of_its_whole_stage(tmp_path):
+    ticks = iter(range(0, 1000))
+    result = go(tmp_path, many(12), hn_fake=Hn(no_story={"Co12", "Co11", "Co10"}, fail_search_for="Co8"), clock=lambda: float(next(ticks)))
+    failed = result.steps[-1]
+    assert failed.name == "showhn" and failed.status == "failed" and failed.seconds >= 2  # batch 1 plus the start of batch 2
 
 
 def test_command_depth_option_and_validation(env):
