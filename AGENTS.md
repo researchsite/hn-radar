@@ -97,6 +97,42 @@ would overwrite the full committed file.
     Why: a swallowed failure looks exactly like a complete answer; a Show HN lookup that silently
     dropped its second search would hide the company's own story from the user.
 
+## Site rules (JavaScript in `site/`)
+
+The rules above are written for the Python code. The pages in `site/careers/` have their own, from the mistakes
+reviews found in `check.html` (PR 59). `AGENTS.md` rules 1, 6, 9 and 10 apply to the pages too.
+
+S1. **Text from a post, a comment or a person's GitHub profile reaches a page only as text.** Use `textContent` or
+    `createTextNode` (the `H.el` helper does); never `innerHTML`, `insertAdjacentHTML`, `document.write` or `eval`.
+    A link from data is used only after `H.safeUrl` or `H.hnItemUrl` accepts it. Why: the author controls that text.
+    (Issue 47 asks for the same as a review standard.)
+
+S2. **A page that handles a person's data keeps it in memory only, and says what it sends.** No `localStorage`,
+    `sessionStorage`, cookie, IndexedDB or analytics script on such a page (`check.html` leaves `analytics.js` out).
+    The only requests allowed are same-origin static files and the public GitHub API, and the page says so in words.
+    Why: a username or a repo list is personal data; a privacy promise that code can break must be tested.
+
+S3. **Limits and failures are named, never blank.** A rate limit, an unknown user, more repos than the cap, a
+    timeout, an offline browser or a malformed response ends in a visible message that says what happened and what to
+    do, and no partial result is shown as complete. Why: rule 6 and rule 10, for the browser.
+
+S4. **Async work can be cancelled and cannot render late.** Every fetch or file read uses an `AbortController` or a
+    generation token that Clear and a newer start both change, and the result is checked against it before it is
+    drawn. Why: a result the person cleared came back after Clear (PR 59).
+
+S5. **What is copied is what is shown.** Build the copied text from the same validated data the page renders, with
+    the same citations. Why: the Copy button once dropped the comment links shown beside the claim (PR 59).
+
+S6. **One idea, one implementation.** The match logic lives in `site/careers/hn-fit.js` and nowhere else on the
+    site; Python (`fingerprint.py`, `match.py`) is the reference. A change to either side regenerates the shared
+    cases (`site/tools/make_fit_golden.py`) in the same commit, and both test suites must pass. Why: two copies drift.
+
+S7. **A fixture, an example and a sample are validated by the real code.** Anything shown to a person as an example
+    must pass the Python models or the matcher through a test (`tests/test_check_example.py` does this).
+
+S8. **State what is only checked by hand.** There is no browser test yet (issue 56): list the behaviours checked
+    by hand in the PR description, and move them into tests when the harness exists.
+
 ## Quality gate (definition of done)
 
 A coding task is done only when all of these hold. Findings come from any reviewer (a person or an
