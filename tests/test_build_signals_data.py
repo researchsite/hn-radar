@@ -216,3 +216,37 @@ def test_main_writes_nothing_when_a_file_is_broken(tmp_path, capsys):
 def test_main_rejects_a_bad_jobs_file(tmp_path, capsys):
     code = bsd.main(["--jobs", str(tmp_path / "missing.json"), "--out", str(tmp_path / "o.json")])
     assert code == 1 and "Error:" in capsys.readouterr().err
+
+
+def test_evidence_is_cut_at_exactly_the_cap_and_the_cut_is_visible(tmp_path):
+    showhn(1, tmp_path, [cand()])
+    pulse(900, tmp_path, [PulseItem(kind="bug", summary="s", comment_ids=[901, 902, 903])])
+    n = bsd.EVIDENCE_CHARS
+    s = sig(job(1), tmp_path, thread([(901, "a" * (n - 1)), (902, "b" * n), (903, "c" * (n + 1))]))
+    exact_minus_one, exact, over = (e.text for e in s.evidence)
+    assert exact_minus_one == "a" * (n - 1) and exact == "b" * n  # at the cap: untouched
+    assert over == "c" * (n - 1) + "…" and len(over) == n  # over it: cut, ending in the marker
+
+
+def test_a_saved_result_for_another_company_name_is_not_used(tmp_path):
+    showhn(1, tmp_path, [cand()])  # saved for the query "Acme"
+    assert sig(job(1, company="Acme"), tmp_path) is not None
+    assert sig(job(1, company="Acme Robotics"), tmp_path) is None  # the post was corrected: stale, not checked
+
+
+def test_a_rejected_thread_request_is_a_controlled_failure(tmp_path, capsys):
+    import httpx
+
+    showhn(1, tmp_path, [cand()])
+    pulse(900, tmp_path, [BUG])
+
+    def refused(sid, **_):
+        raise httpx.ConnectError("connection refused")
+
+    with pytest.raises(bsd.SignalsBuildError, match="could not read the thread of story 900"):
+        sig(job(1), tmp_path, refused)
+    for error in (httpx.ReadTimeout("slow"), httpx.HTTPStatusError("503", request=httpx.Request("GET", "https://x"), response=httpx.Response(503))):
+        def failing(sid, _e=error, **_):
+            raise _e
+        with pytest.raises(bsd.SignalsBuildError):
+            sig(job(1), tmp_path, failing)

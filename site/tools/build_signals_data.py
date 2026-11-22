@@ -17,6 +17,7 @@ cannot be fetched fails the run: nothing is written (a failed request is not a c
 """
 
 import argparse
+import functools
 import importlib.util
 import sys
 from collections.abc import Callable
@@ -24,6 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
+import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from hnradar.cli import _terminal_safe, _write_text_atomic
@@ -40,7 +42,8 @@ DEFAULT_JOBS = DATA / "jobs.json"
 DEFAULT_SHOWHN = DATA / "showhn"
 DEFAULT_PULSE = DATA / "pulse"
 DEFAULT_OUT = DATA / "signals.json"
-EVIDENCE_CHARS = 400
+EVIDENCE_CHARS = 400  # a longer comment is cut to this many characters, the last one being the "…" that shows it was cut
+CUT = "…"
 
 
 class SignalsBuildError(Exception):
@@ -96,15 +99,26 @@ class SignalsFile(BaseModel):
     jobs: dict[str, Signal]
 
 
-def load_jobs(path: Path) -> list[Job]:
-    """The same checks as the Show HN builder (readable, valid, unique positive ids), loaded from its file."""
+@functools.lru_cache(maxsize=1)
+def _showhn_builder():
+    """site/tools/build_showhn_data.py, loaded from its file: its job checks and its notion of a current file are used, not copied."""
     spec = importlib.util.spec_from_file_location("build_showhn_data", Path(__file__).with_name("build_showhn_data.py"))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    return module
+
+
+def load_jobs(path: Path) -> list[Job]:
+    """The same checks as the Show HN builder (readable, valid, unique positive ids)."""
+    module = _showhn_builder()
     try:
         return module.load_jobs(path)
     except module.ShowHNBuildError as exc:
         raise SignalsBuildError(str(exc)) from exc
+
+
+def cut(text: str) -> str:
+    return text if len(text) <= EVIDENCE_CHARS else text[: EVIDENCE_CHARS - 1] + CUT
 
 
 def _read(path: Path, model, what: str):
@@ -130,7 +144,7 @@ def signal_for(job: Job, showhn_dir: Path, pulse_dir: Path, fetch: Callable[...,
     if not path.is_file():
         return None
     result = _read(path, ShowHNResult, "Show HN file")
-    if result.domain != domain:  # made for another link: stale, so not checked rather than guessed
+    if result.domain != domain or result.query != _showhn_builder().job_query(job):  # made for another link or company: stale, so not checked rather than guessed
         return None
     look = story_from_result(domain, result)
     if look.story is None:
@@ -148,7 +162,7 @@ def signal_for(job: Job, showhn_dir: Path, pulse_dir: Path, fetch: Callable[...,
         raise SignalsBuildError(f"the pulse {pulse_path} is for story {pulse.story_id}, not {story.story_id}")
     try:
         children = story_children(story.story_id, fetch)
-    except (hn.HNError, OSError, ValueError) as exc:
+    except (hn.HNError, httpx.HTTPError, OSError, ValueError) as exc:  # a rejected or timed-out request is a controlled failure too
         raise SignalsBuildError(f"could not read the thread of story {story.story_id}: {_terminal_safe(str(exc))}") from exc
     if children is None:
         raise SignalsBuildError(f"{story.story_id} is not a story")
@@ -156,7 +170,7 @@ def signal_for(job: Job, showhn_dir: Path, pulse_dir: Path, fetch: Callable[...,
     if bug is None:
         return Signal(status="no_cited_problem", show_hn=story)
     summary, cited = bug
-    evidence = [SignalEvidence(comment_id=c["id"], text=_terminal_safe(c["text"])[:EVIDENCE_CHARS],
+    evidence = [SignalEvidence(comment_id=c["id"], text=cut(_terminal_safe(c["text"])),
                                url=f"https://news.ycombinator.com/item?id={c['id']}") for c in cited]
     return Signal(status="ok", show_hn=story, problem=SignalProblem(summary=_terminal_safe(summary), comment_ids=[c["id"] for c in cited]),
                   evidence=evidence)
