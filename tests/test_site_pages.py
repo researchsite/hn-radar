@@ -26,3 +26,29 @@ def test_every_local_script_and_style_a_page_loads_is_in_the_publish_table():
     table = next(line for line in README.splitlines() if line.startswith("| `hn.css`"))
     for name in referenced():
         assert f"`{name}`" in table and f"`includes/rw-{name}`" in table, f"{name} is loaded by a page but missing from the publish table in site/README.md"
+
+
+def test_every_data_file_the_page_loads_is_published():
+    """check.html reads data files by name; site/README.md must list them in the publish allowlist (and the private script has them)."""
+    page = (CAREERS / "check.html").read_text(encoding="utf-8")
+    files = set(re.findall(r"loadData\('([\w.-]+\.json)'", page))
+    assert {"jobs.json", "signals.json"} <= files
+    for name in files:
+        assert f"`{name}`" in README, f"{name} is read by check.html but not named in site/README.md"
+
+
+def test_every_node_test_file_is_in_the_documented_command():
+    """PowerShell and Node 20 do not expand a glob, so the docs name each file; a new test file must be added to them."""
+    root = CAREERS.parent.parent
+    docs = {name: (root / name).read_text(encoding="utf-8") for name in ("AGENTS.md", "README.md", "site/README.md")}
+    for test_file in sorted((CAREERS.parent / "tests").glob("*.test.js")):
+        for name, text in docs.items():
+            assert f"site/tests/{test_file.name}" in text, f"{test_file.name} is not in the node --test command in {name}"
+
+
+def test_every_place_that_lists_the_published_data_files_names_signals_json():
+    """Qodo (PR 67): the allowlist is described in more than one paragraph; each one must name every data file the page reads."""
+    paragraphs = [p for p in README.split("\n") if "allowlist" in p and "showhn-index.json" in p]
+    assert len(paragraphs) >= 2
+    for p in paragraphs:
+        assert "`signals.json`" in p, "a paragraph of site/README.md lists the published data files without signals.json"

@@ -159,7 +159,60 @@
     return jobs;
   }
 
+  // ---- signals.json: what `hnradar radar` finds for every job, made once by site/tools/build_signals_data.py ----
+  var SIGNAL_STATUSES = ['no_show_hn', 'no_pulse', 'not_enough_signal', 'no_cited_problem', 'ok'];
+  function isInt(n) { return typeof n === 'number' && isFinite(n) && Math.floor(n) === n; }
+  function isStr(v) { return typeof v === 'string'; }
+  function optional(v, test) { return v === undefined || v === null || test(v); }
+
+  // The same rules as the Python model (strict: no coercion); the golden cases decide, see site/tools/make_fit_golden.py.
+  // Throws TypeError on the first problem: a file that is only partly valid is not used at all (site rule S3).
+  function checkSignals(file) {
+    function bad(why) { throw new TypeError('signals: ' + why); }
+    if (!isObject(file) || !isStr(file.generated_at) || !isObject(file.jobs)) bad('not a signals file');
+    Object.keys(file.jobs).forEach(function (id) {
+      var e = file.jobs[id];
+      if (!isObject(e) || SIGNAL_STATUSES.indexOf(e.status) === -1) bad('entry ' + id + ' has no valid status');
+      var story = e.show_hn, problem = e.problem, evidence = e.evidence === undefined ? [] : e.evidence;
+      if (!optional(story, function (v) { return isObject(v) && isInt(v.story_id) && isStr(v.title) && isStr(v.domain) && isStr(v.url); })) bad('entry ' + id + ' has a story that is not valid');
+      if (!optional(problem, function (v) { return isObject(v) && isStr(v.summary) && Array.isArray(v.comment_ids) && v.comment_ids.length > 0 && v.comment_ids.every(isInt); })) bad('entry ' + id + ' has a problem that is not valid');
+      if (!Array.isArray(evidence) || !evidence.every(function (x) { return isObject(x) && isInt(x.comment_id) && isStr(x.text) && isStr(x.url); })) bad('entry ' + id + ' has evidence that is not valid');
+      if (!optional(e.note, isStr)) bad('entry ' + id + ' has a note that is not text');
+      var hasStory = story !== undefined && story !== null, hasProblem = problem !== undefined && problem !== null;
+      if (e.status === 'ok') {
+        if (!hasStory || !hasProblem) bad('entry ' + id + ' is ok without a story and a problem');
+        var cited = {}, shown = {};
+        problem.comment_ids.forEach(function (c) { cited[c] = true; });
+        evidence.forEach(function (x) { shown[x.comment_id] = true; });
+        var a = Object.keys(cited), b = Object.keys(shown);
+        if (a.length !== b.length || a.some(function (k) { return !shown[k]; })) bad('entry ' + id + ' does not show exactly the comments its problem cites');
+      } else if (hasProblem || evidence.length) bad('entry ' + id + ' has a problem or evidence without being ok');
+      if (e.status !== 'no_show_hn' && !hasStory) bad('entry ' + id + ' needs a story');
+    });
+    return file;
+  }
+
+  // A match plus its signal (or null when there is none) as a company in the shape of a radar result. No signal is
+  // "not checked", never "no Show HN": an absent entry says nothing about the thread (rule 6, rule 10).
+  function companyFromMatch(match, signal) {
+    var c = {
+      rank: match.rank, company: match.job.company, role: match.job.role, job_comment_id: match.job.comment_id, job_url: match.job.url,
+      fit_score: match.score, fit_reasons: match.reasons.map(function (r) { return r.text; }),
+      show_hn: null, pulse_status: 'not_checked', problem: null, evidence: [], draft_status: 'skipped', draft: null, note: null
+    };
+    if (!signal) return c;
+    c.pulse_status = signal.status;
+    c.note = signal.note === undefined ? null : signal.note;
+    if (signal.show_hn) c.show_hn = { story_id: signal.show_hn.story_id, title: signal.show_hn.title, domain: signal.show_hn.domain, url: signal.show_hn.url };
+    if (signal.status === 'ok') {
+      c.problem = { summary: signal.problem.summary, comment_ids: signal.problem.comment_ids.slice() };
+      c.evidence = signal.evidence.map(function (x) { return { comment_id: x.comment_id, text: x.text, url: x.url }; });
+    }
+    return c;
+  }
+
   return {
-    TOP_MATCHES: TOP_MATCHES, norm: norm, buildProfile: buildProfile, scoreJob: scoreJob, topMatches: topMatches, checkJobs: checkJobs
+    TOP_MATCHES: TOP_MATCHES, norm: norm, buildProfile: buildProfile, scoreJob: scoreJob, topMatches: topMatches, checkJobs: checkJobs,
+    checkSignals: checkSignals, companyFromMatch: companyFromMatch
   };
 });

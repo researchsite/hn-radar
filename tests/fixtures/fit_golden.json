@@ -2792,5 +2792,730 @@
     }
    ]
   }
+ ],
+ "signals_cases": [
+  {
+   "name": "empty_jobs_object",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {}
+   },
+   "valid": true
+  },
+  {
+   "name": "every_status_valid",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "a": {
+      "status": "no_show_hn",
+      "note": "no domain in the job link"
+     },
+     "b": {
+      "status": "no_pulse",
+      "show_hn": {
+       "story_id": 900,
+       "title": "Show HN: Acme",
+       "domain": "acme.com",
+       "url": "https://news.ycombinator.com/item?id=900"
+      }
+     },
+     "c": {
+      "status": "not_enough_signal",
+      "show_hn": {
+       "story_id": 900,
+       "title": "Show HN: Acme",
+       "domain": "acme.com",
+       "url": "https://news.ycombinator.com/item?id=900"
+      }
+     },
+     "d": {
+      "status": "no_cited_problem",
+      "show_hn": {
+       "story_id": 900,
+       "title": "Show HN: Acme",
+       "domain": "acme.com",
+       "url": "https://news.ycombinator.com/item?id=900"
+      }
+     },
+     "e": {
+      "status": "ok",
+      "show_hn": {
+       "story_id": 900,
+       "title": "Show HN: Acme",
+       "domain": "acme.com",
+       "url": "https://news.ycombinator.com/item?id=900"
+      },
+      "problem": {
+       "summary": "It crashes on start",
+       "comment_ids": [
+        901,
+        902
+       ]
+      },
+      "evidence": [
+       {
+        "comment_id": 901,
+        "text": "It crashed",
+        "url": "u1"
+       },
+       {
+        "comment_id": 902,
+        "text": "Same",
+        "url": "u2"
+       }
+      ]
+     }
+    }
+   },
+   "valid": true
+  },
+  {
+   "name": "ok_entry_valid",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "1": {
+      "status": "ok",
+      "show_hn": {
+       "story_id": 900,
+       "title": "Show HN: Acme",
+       "domain": "acme.com",
+       "url": "https://news.ycombinator.com/item?id=900"
+      },
+      "problem": {
+       "summary": "It crashes on start",
+       "comment_ids": [
+        901,
+        902
+       ]
+      },
+      "evidence": [
+       {
+        "comment_id": 901,
+        "text": "It crashed",
+        "url": "u1"
+       },
+       {
+        "comment_id": 902,
+        "text": "Same",
+        "url": "u2"
+       }
+      ]
+     }
+    }
+   },
+   "valid": true
+  },
+  {
+   "name": "evidence_in_another_order",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": {
+      "status": "ok",
+      "show_hn": {
+       "story_id": 900,
+       "title": "Show HN: Acme",
+       "domain": "acme.com",
+       "url": "https://news.ycombinator.com/item?id=900"
+      },
+      "problem": {
+       "summary": "It crashes on start",
+       "comment_ids": [
+        901,
+        902
+       ]
+      },
+      "evidence": [
+       {
+        "comment_id": 902,
+        "text": "Same",
+        "url": "u2"
+       },
+       {
+        "comment_id": 901,
+        "text": "It crashed",
+        "url": "u1"
+       }
+      ]
+     }
+    }
+   },
+   "valid": true
+  },
+  {
+   "name": "extra_fields_are_ignored",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": {
+      "status": "ok",
+      "show_hn": {
+       "story_id": 900,
+       "title": "Show HN: Acme",
+       "domain": "acme.com",
+       "url": "https://news.ycombinator.com/item?id=900"
+      },
+      "problem": {
+       "summary": "It crashes on start",
+       "comment_ids": [
+        901,
+        902
+       ]
+      },
+      "evidence": [
+       {
+        "comment_id": 901,
+        "text": "It crashed",
+        "url": "u1"
+       },
+       {
+        "comment_id": 902,
+        "text": "Same",
+        "url": "u2"
+       }
+      ],
+      "extra": 1
+     }
+    }
+   },
+   "valid": true
+  },
+  {
+   "name": "null_optional_fields",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": {
+      "status": "no_show_hn",
+      "show_hn": null,
+      "problem": null,
+      "note": null
+     }
+    }
+   },
+   "valid": true
+  },
+  {
+   "name": "ok_without_evidence",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": {
+      "status": "ok",
+      "show_hn": {
+       "story_id": 900,
+       "title": "Show HN: Acme",
+       "domain": "acme.com",
+       "url": "https://news.ycombinator.com/item?id=900"
+      },
+      "problem": {
+       "summary": "It crashes on start",
+       "comment_ids": [
+        901,
+        902
+       ]
+      },
+      "evidence": []
+     }
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "ok_with_one_comment_missing",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": {
+      "status": "ok",
+      "show_hn": {
+       "story_id": 900,
+       "title": "Show HN: Acme",
+       "domain": "acme.com",
+       "url": "https://news.ycombinator.com/item?id=900"
+      },
+      "problem": {
+       "summary": "It crashes on start",
+       "comment_ids": [
+        901,
+        902
+       ]
+      },
+      "evidence": [
+       {
+        "comment_id": 901,
+        "text": "It crashed",
+        "url": "u1"
+       }
+      ]
+     }
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "ok_with_an_extra_comment",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": {
+      "status": "ok",
+      "show_hn": {
+       "story_id": 900,
+       "title": "Show HN: Acme",
+       "domain": "acme.com",
+       "url": "https://news.ycombinator.com/item?id=900"
+      },
+      "problem": {
+       "summary": "It crashes on start",
+       "comment_ids": [
+        901,
+        902
+       ]
+      },
+      "evidence": [
+       {
+        "comment_id": 901,
+        "text": "It crashed",
+        "url": "u1"
+       },
+       {
+        "comment_id": 902,
+        "text": "Same",
+        "url": "u2"
+       },
+       {
+        "comment_id": 903,
+        "text": "t",
+        "url": "u"
+       }
+      ]
+     }
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "ok_without_problem",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": {
+      "status": "ok",
+      "show_hn": {
+       "story_id": 900,
+       "title": "Show HN: Acme",
+       "domain": "acme.com",
+       "url": "https://news.ycombinator.com/item?id=900"
+      },
+      "evidence": [
+       {
+        "comment_id": 901,
+        "text": "It crashed",
+        "url": "u1"
+       },
+       {
+        "comment_id": 902,
+        "text": "Same",
+        "url": "u2"
+       }
+      ]
+     }
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "ok_without_story",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": {
+      "status": "ok",
+      "show_hn": null,
+      "problem": {
+       "summary": "It crashes on start",
+       "comment_ids": [
+        901,
+        902
+       ]
+      },
+      "evidence": [
+       {
+        "comment_id": 901,
+        "text": "It crashed",
+        "url": "u1"
+       },
+       {
+        "comment_id": 902,
+        "text": "Same",
+        "url": "u2"
+       }
+      ]
+     }
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "no_pulse_without_story",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": {
+      "status": "no_pulse"
+     }
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "no_show_hn_with_a_problem",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": {
+      "status": "no_show_hn",
+      "problem": {
+       "summary": "It crashes on start",
+       "comment_ids": [
+        901,
+        902
+       ]
+      }
+     }
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "no_pulse_with_evidence",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": {
+      "status": "no_pulse",
+      "show_hn": {
+       "story_id": 900,
+       "title": "Show HN: Acme",
+       "domain": "acme.com",
+       "url": "https://news.ycombinator.com/item?id=900"
+      },
+      "evidence": [
+       {
+        "comment_id": 901,
+        "text": "It crashed",
+        "url": "u1"
+       },
+       {
+        "comment_id": 902,
+        "text": "Same",
+        "url": "u2"
+       }
+      ]
+     }
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "unknown_status",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": {
+      "status": "maybe"
+     }
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "missing_status",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": {
+      "note": "n"
+     }
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "problem_with_no_comment_ids",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": {
+      "status": "ok",
+      "show_hn": {
+       "story_id": 900,
+       "title": "Show HN: Acme",
+       "domain": "acme.com",
+       "url": "https://news.ycombinator.com/item?id=900"
+      },
+      "problem": {
+       "summary": "s",
+       "comment_ids": []
+      },
+      "evidence": [
+       {
+        "comment_id": 901,
+        "text": "It crashed",
+        "url": "u1"
+       },
+       {
+        "comment_id": 902,
+        "text": "Same",
+        "url": "u2"
+       }
+      ]
+     }
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "ok_with_empty_comment_ids_and_no_evidence",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": {
+      "status": "ok",
+      "show_hn": {
+       "story_id": 900,
+       "title": "Show HN: Acme",
+       "domain": "acme.com",
+       "url": "https://news.ycombinator.com/item?id=900"
+      },
+      "problem": {
+       "summary": "s",
+       "comment_ids": []
+      },
+      "evidence": []
+     }
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "comment_id_as_text",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": {
+      "status": "ok",
+      "show_hn": {
+       "story_id": 900,
+       "title": "Show HN: Acme",
+       "domain": "acme.com",
+       "url": "https://news.ycombinator.com/item?id=900"
+      },
+      "problem": {
+       "summary": "s",
+       "comment_ids": [
+        "901",
+        902
+       ]
+      },
+      "evidence": [
+       {
+        "comment_id": 901,
+        "text": "It crashed",
+        "url": "u1"
+       },
+       {
+        "comment_id": 902,
+        "text": "Same",
+        "url": "u2"
+       }
+      ]
+     }
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "story_id_as_text",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": {
+      "status": "no_pulse",
+      "show_hn": {
+       "story_id": "900",
+       "title": "Show HN: Acme",
+       "domain": "acme.com",
+       "url": "https://news.ycombinator.com/item?id=900"
+      }
+     }
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "story_id_boolean",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": {
+      "status": "no_pulse",
+      "show_hn": {
+       "story_id": true,
+       "title": "Show HN: Acme",
+       "domain": "acme.com",
+       "url": "https://news.ycombinator.com/item?id=900"
+      }
+     }
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "story_id_fraction",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": {
+      "status": "no_pulse",
+      "show_hn": {
+       "story_id": 900.5,
+       "title": "Show HN: Acme",
+       "domain": "acme.com",
+       "url": "https://news.ycombinator.com/item?id=900"
+      }
+     }
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "story_without_title",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": {
+      "status": "no_pulse",
+      "show_hn": {
+       "story_id": 900,
+       "domain": "acme.com",
+       "url": "https://news.ycombinator.com/item?id=900"
+      }
+     }
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "note_is_a_number",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": {
+      "status": "no_show_hn",
+      "note": 5
+     }
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "entry_is_a_list",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": []
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "entry_is_null",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "x": null
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "jobs_is_a_list",
+   "data": {
+    "generated_at": "t",
+    "jobs": []
+   },
+   "valid": false
+  },
+  {
+   "name": "jobs_missing",
+   "data": {
+    "generated_at": "t"
+   },
+   "valid": false
+  },
+  {
+   "name": "generated_at_missing",
+   "data": {
+    "jobs": {}
+   },
+   "valid": false
+  },
+  {
+   "name": "generated_at_a_number",
+   "data": {
+    "generated_at": 5,
+    "jobs": {}
+   },
+   "valid": false
+  },
+  {
+   "name": "not_an_object",
+   "data": [],
+   "valid": false
+  },
+  {
+   "name": "one_bad_entry_spoils_the_file",
+   "data": {
+    "generated_at": "2026-11-22T12:00:00+00:00",
+    "jobs": {
+     "good": {
+      "status": "ok",
+      "show_hn": {
+       "story_id": 900,
+       "title": "Show HN: Acme",
+       "domain": "acme.com",
+       "url": "https://news.ycombinator.com/item?id=900"
+      },
+      "problem": {
+       "summary": "It crashes on start",
+       "comment_ids": [
+        901,
+        902
+       ]
+      },
+      "evidence": [
+       {
+        "comment_id": 901,
+        "text": "It crashed",
+        "url": "u1"
+       },
+       {
+        "comment_id": 902,
+        "text": "Same",
+        "url": "u2"
+       }
+      ]
+     },
+     "bad": {
+      "status": "ok"
+     }
+    }
+   },
+   "valid": false
+  }
  ]
 }
