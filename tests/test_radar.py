@@ -282,12 +282,58 @@ def test_command_rejects_an_invalid_username(env, name):
     assert result.exit_code == 1 and "not a valid GitHub username" in result.output
 
 
-@pytest.mark.parametrize("content, text", [(None, "jobs file not found"), ("{", "could not read jobs file"), ('{"a": 1}', "unexpected shape"), ('[{"x": 1}]', "unexpected shape")])
-def test_command_rejects_a_missing_or_bad_jobs_file(env, content, text):
+@pytest.mark.parametrize("content, text", [(None, "not found. Run `hnradar fetch-hiring`"), ("{", "could not be read"), ('{"a": 1}', "expected a list of jobs"), ('[{"x": 1}]', "validation error")])
+def test_command_turns_a_missing_or_bad_jobs_file_into_a_failed_result(env, content, text):
     if content is not None:
         (env.path / "data" / "jobs.json").write_text(content, encoding="utf-8")
+    result = runner.invoke(app, ["radar", "octo", "--out", "radar.json"])
+    assert result.exit_code == 1 and "radar stopped at step 'match'" in result.output and text in result.output
+    saved = json.loads((env.path / "radar.json").read_text(encoding="utf-8"))
+    assert saved["status"] == "failed" and saved["failed_step"] == "match" and saved["companies"] == [] and text in saved["error"]
+
+
+def test_an_empty_jobs_list_is_no_matches(tmp_path):
+    result = go(tmp_path, [])
+    assert result.status == "no_matches" and result.companies == []
+    assert result.steps[1].name == "match" and result.steps[1].status == "ok" and result.steps[1].message == "0 of 0 jobs"
+    assert "No strong matches for octo in 0 jobs." in result.warnings[0]
+
+
+def test_command_with_an_empty_jobs_file_is_friendly_and_exits_0(env):
+    env.jobs([])
     result = runner.invoke(app, ["radar", "octo"])
-    assert result.exit_code == 1 and text in result.output
+    assert result.exit_code == 0 and "No strong matches for octo in 0 jobs." in result.output
+
+
+def test_limit_follows_more_than_three_matches(tmp_path):
+    jobs = [job(i, f"Co{i}") for i in range(1, 8)]
+    assert len(go(tmp_path, jobs, limit=5).companies) == 5
+
+
+@pytest.mark.parametrize("value", ["0", "11", "x"])
+def test_command_rejects_a_bad_limit(env, value):
+    env.jobs()
+    assert runner.invoke(app, ["radar", "octo", "--limit", value]).exit_code != 0
+
+
+def test_command_limit_option_is_passed_on(env):
+    env.jobs([job(i, f"Co{i}") for i in range(1, 8)])
+    result = runner.invoke(app, ["radar", "octo", "--limit", "4"])
+    assert result.exit_code == 0 and "top 4 companies" in result.output
+
+
+def test_text_output_cleans_the_domain_and_the_model_name(tmp_path, monkeypatch):
+    esc, bell, rlo = chr(27), chr(7), chr(0x202E)
+    result = go(tmp_path, JOBS[:1])
+    result.companies[0].show_hn.domain = f"acme.com{esc}[31m{rlo}"
+    result.companies[0].draft.domain = f"acme.com{esc}[31m{rlo}"
+    result.companies[0].draft.model = f"m{bell}"
+    out = []
+    monkeypatch.setattr(cli.typer, "echo", lambda msg="", **k: out.append(str(msg)))
+    cli._echo_radar(result)
+    text = chr(10).join(out)
+    assert esc not in text and rlo not in text and bell not in text and "acme.com" in text
+
 
 
 def test_command_cleans_hostile_post_text_before_printing(env):

@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 
 from hnradar.draft.schema import DraftResult
 from hnradar.draft.write import write_draft
-from hnradar.match import top_matches
+from hnradar.match import TOP_MATCHES, top_matches
 from hnradar.models import Job
 from hnradar.pulse.cluster import PulseError
 from hnradar.sources import github, hn, ollama
@@ -81,6 +81,12 @@ class RadarResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
 
 
+def failed_result(username: str, step: str, message: str) -> "RadarResult":
+    """A failed run that never reached `run_radar` (for example an unreadable jobs file): same shape, same rule (no companies)."""
+    return RadarResult(username=username, generated_at=_now(), status="failed", failed_step=step, error=message,
+                       steps=[RadarStep(name=step, status="failed", message=message)])
+
+
 class _StepFailed(Exception):
     def __init__(self, step: str, cause: BaseException):
         super().__init__(f"{step}: {cause}")
@@ -104,6 +110,7 @@ def run_radar(
     fetch_item: Callable[..., dict] = hn.fetch_item,
     progress: Callable[[RadarStep], None] = lambda step: None,
     clock: Callable[[], float] = time.monotonic,
+    limit: int = TOP_MATCHES,
 ) -> RadarResult:
     steps: list[RadarStep] = []
 
@@ -138,7 +145,7 @@ def run_radar(
     # 2. match
     t = clock()
     try:
-        matches = top_matches(profile, jobs)
+        matches = top_matches(profile, jobs, limit)
     except STEP_ERRORS as exc:
         return failed("match", exc, t)
     record("match", "ok", t, f"{len(matches)} of {len(jobs)} jobs")

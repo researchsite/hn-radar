@@ -11,7 +11,7 @@ import typer
 
 from hnradar.closed import closing_reply_id
 from hnradar.draft.write import write_draft
-from hnradar.match import top_matches
+from hnradar.match import TOP_MATCHES, top_matches
 from hnradar.models import Job, MatchResult, Profile
 from hnradar.parse import is_candidate_profile, parse_comment
 from hnradar import radar as radar_mod
@@ -175,6 +175,17 @@ def _read_json_file(path: Path, what: str, hint: str):
         raise typer.Exit(1) from exc
 
 
+def _load_jobs(path: Path) -> list[Job]:
+    """The jobs file as Job objects; every problem (missing, unreadable, not JSON, wrong shape) is a ValueError."""
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ValueError("not found. Run `hnradar fetch-hiring` first.") from exc
+    except (OSError, ValueError, RecursionError) as exc:  # unreadable, not JSON, or nested too deeply
+        raise ValueError(f"could not be read: {type(exc).__name__}") from exc
+    return _parse_jobs(raw)
+
+
 def _profile_path(profiles_dir: Path, username: str) -> Path:
     """`fingerprint Octo` writes Octo.json; GitHub logins are case-insensitive, so `match octo` finds it too."""
     exact = profiles_dir / f"{username}.json"
@@ -311,7 +322,7 @@ def pulse(
 
 def _echo_draft(drafted) -> None:
     """The draft, then the evidence under it. Shared by `draft` and `radar`."""
-    typer.echo(f"Draft for {_terminal_safe(drafted.company)} ({drafted.model}), using your repo {_terminal_safe(drafted.repo)}:")
+    typer.echo(f"Draft for {_terminal_safe(drafted.company)} ({_terminal_safe(drafted.model)}), using your repo {_terminal_safe(drafted.repo)}:")
     typer.echo("")
     for line in drafted.lines:
         typer.echo(_terminal_safe(line.text))
@@ -323,7 +334,7 @@ def _echo_draft(drafted) -> None:
     typer.echo(f"repo {_terminal_safe(drafted.repo)} | {_terminal_safe(drafted.repo_language) or '-'} | {_terminal_safe(drafted.repo_description) or 'no description'}")
     for e in drafted.evidence:
         typer.echo(f"comment {e.comment_id} | {_terminal_safe(e.text)} | {e.url}")
-    typer.echo(f"Show HN: https://news.ycombinator.com/item?id={drafted.story_id} (links to {drafted.domain})")
+    typer.echo(f"Show HN: https://news.ycombinator.com/item?id={drafted.story_id} (links to {_terminal_safe(drafted.domain)})")
 
 
 @app.command("draft")
@@ -398,9 +409,10 @@ def radar(
     profiles_dir: Annotated[Path, typer.Option(help="Directory for <user>.json (the saved profile).")] = Path("data/profiles"),
     pulse_dir: Annotated[Path, typer.Option(help="Directory holding saved pulses (`hnradar pulse`).")] = Path("data/pulse"),
     out: Annotated[Path | None, typer.Option(help="Also write the full result (JSON) to this file. It is about one person: keep it private.")] = None,
+    limit: Annotated[int, typer.Option(min=1, max=10, help="How many of the best matches to follow through Show HN, pulse and draft.")] = TOP_MATCHES,
     as_json: Annotated[bool, typer.Option("--json", help="Print the result as JSON instead of text.")] = False,
 ) -> None:
-    """From a GitHub username to the top 3 companies, each with fit reasons, a cited problem and a draft.
+    """From a GitHub username to the top 3 companies (`--limit` for more), each with fit reasons, a cited problem and a draft.
 
     Runs fingerprint, match, Show HN, pulse and draft in order, one progress line per step on stderr. A step that
     fails stops the run with an error naming it; nothing partial is shown as complete. A company with no Show HN
@@ -409,12 +421,12 @@ def radar(
     if not github.USERNAME_RE.fullmatch(username):
         typer.echo(f"Error: {username!r} is not a valid GitHub username", err=True)
         raise typer.Exit(1)
-    raw_jobs = _read_json_file(jobs_file, "jobs file", "Run `hnradar fetch-hiring` first.")
+    jobs = None
+    jobs_error = None
     try:
-        jobs = _parse_jobs(raw_jobs)
-    except ValueError as exc:
-        typer.echo(f"Error: {jobs_file} has an unexpected shape: {exc}", err=True)
-        raise typer.Exit(1) from exc
+        jobs = _load_jobs(jobs_file)
+    except ValueError as exc:  # the jobs file is the input of the match step: the failure is a result, written to --out too
+        jobs_error = str(exc)
 
     counter = {"n": 0}
 
@@ -423,9 +435,13 @@ def radar(
         line = f"[{counter['n']}/{len(radar_mod.STEP_NAMES)}] {step.name}: {step.status} ({step.seconds}s)"
         typer.echo(line + (f" - {_terminal_safe(step.message)}" if step.message else ""), err=True)
 
-    result = radar_mod.run_radar(
-        username, jobs, profiles_dir=profiles_dir, pulse_dir=pulse_dir, client=_model_client(model), progress=progress
-    )
+    if jobs is None:
+        result = radar_mod.failed_result(username, "match", f"jobs file {jobs_file}: {jobs_error}")
+        progress(result.steps[0])
+    else:
+        result = radar_mod.run_radar(
+            username, jobs, profiles_dir=profiles_dir, pulse_dir=pulse_dir, client=_model_client(model), progress=progress, limit=limit
+        )
 
     if out is not None:
         try:
@@ -456,7 +472,7 @@ def _echo_radar(result) -> None:
         if c.job_url:
             typer.echo(f"   {_terminal_safe(c.job_url)}")
         if c.show_hn is not None:
-            typer.echo(f"   Show HN that links to {c.show_hn.domain}: {_terminal_safe(c.show_hn.title)} ({c.show_hn.url})")
+            typer.echo(f"   Show HN that links to {_terminal_safe(c.show_hn.domain)}: {_terminal_safe(c.show_hn.title)} ({c.show_hn.url})")
         if c.problem is not None:
             ids = ", ".join(str(i) for i in c.problem.comment_ids)
             typer.echo(f"   Users reported: {_terminal_safe(c.problem.summary)} (comments {ids})")

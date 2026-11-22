@@ -36,3 +36,6 @@ site/favicon.svg
 site/site.webmanifest
 site/images/favicon-*.png
 site/images/apple-touch-icon.png
+
+# A personal radar result (about one person; see README "radar")
+radar.json

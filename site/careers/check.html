@@ -110,15 +110,53 @@
  "companies": [
   {
    "rank": 1,
+   "company": "RAIDS AI",
+   "role": "Senior Technical Project Manager (Full Stack)",
+   "job_comment_id": 50451710,
+   "job_url": "https://www.linkedin.com/jobs/view/4483409995/",
+   "fit_score": 30,
+   "fit_reasons": [
+    "Your Python work matches this job's stack",
+    "Your repo django-status-page is written in Python",
+    "Your repos use the topic django"
+   ],
+   "show_hn": null,
+   "pulse_status": "no_show_hn",
+   "problem": null,
+   "draft_status": "skipped",
+   "draft": null,
+   "note": "platform domain (linkedin.com); a story that links to it may belong to someone else"
+  },
+  {
+   "rank": 2,
+   "company": "Search Atlas",
+   "role": "Product Engineer (PM)",
+   "job_comment_id": 50365279,
+   "job_url": "https://careers.searchatlas.com/jobs/599248-product-engineer-pm",
+   "fit_score": 30,
+   "fit_reasons": [
+    "Your Python work matches this job's stack",
+    "Your repo django-status-page is written in Python",
+    "Your repos use the topic django"
+   ],
+   "show_hn": null,
+   "pulse_status": "no_show_hn",
+   "problem": null,
+   "draft_status": "skipped",
+   "draft": null,
+   "note": "no Show HN links to careers.searchatlas.com"
+  },
+  {
+   "rank": 3,
    "company": "SadServers",
    "role": "Software Engineer",
    "job_comment_id": 50341345,
    "job_url": "https://sadservers.com",
-   "fit_score": 42,
+   "fit_score": 30,
    "fit_reasons": [
     "Your Python work matches this job's stack",
-    "Your Django work matches this job's stack",
-    "Your repo django-status-page is written in Python"
+    "Your repo django-status-page is written in Python",
+    "Your repos use the topic django"
    ],
    "show_hn": {
     "story_id": 33344142,
@@ -150,7 +188,7 @@
       "comment_ids": []
      },
      {
-      "text": "In the Show HN thread that links to sadservers.com, two people wrote that the page stayed on \"Waiting for server...\" or timed out.",
+      "text": "A Show HN that links to sadservers.com got two reports that the page stayed on \"Waiting for server...\" or timed out.",
       "comment_ids": [
        33344666,
        33345559
@@ -183,42 +221,6 @@
     ]
    },
    "note": null
-  },
-  {
-   "rank": 2,
-   "company": "RAIDS AI",
-   "role": "Senior Technical Project Manager (Full Stack)",
-   "job_comment_id": 50451710,
-   "job_url": "https://www.linkedin.com/jobs/view/4483409995/",
-   "fit_score": 38,
-   "fit_reasons": [
-    "Your Python work matches this job's stack",
-    "Your Django work matches this job's stack"
-   ],
-   "show_hn": null,
-   "pulse_status": "no_show_hn",
-   "problem": null,
-   "draft_status": "skipped",
-   "draft": null,
-   "note": "platform domain (linkedin.com); a story that links to it may belong to someone else"
-  },
-  {
-   "rank": 3,
-   "company": "Search Atlas",
-   "role": "Product Engineer (PM)",
-   "job_comment_id": 50365279,
-   "job_url": "https://careers.searchatlas.com/jobs/599248-product-engineer-pm",
-   "fit_score": 35,
-   "fit_reasons": [
-    "Your Python work matches this job's stack",
-    "Your Django work matches this job's stack"
-   ],
-   "show_hn": null,
-   "pulse_status": "no_show_hn",
-   "problem": null,
-   "draft_status": "skipped",
-   "draft": null,
-   "note": "no Show HN links to careers.searchatlas.com"
   }
  ],
  "warnings": [
@@ -266,7 +268,7 @@
       body.appendChild(p);
     });
     box.appendChild(body);
-    var plain = lines.map(function (l) { return l.text; }).join('\n');
+    var plain = lines.map(function (l) { return l.ids.length ? l.text + ' (' + l.ids.map(function (i) { return H.hnItemUrl(i); }).join(', ') + ')' : l.text; }).join('\n');
     var status = el('span', { className: 'rw-hn-small rw-hn-muted', role: 'status' });
     var copy = el('button', { type: 'button', className: 'rw-hn-btn' }, 'Copy draft');
     copy.addEventListener('click', function () {
@@ -336,7 +338,7 @@
       var dr = renderDraft(c.draft);
       if (dr.node) li.appendChild(dr.node);
       else li.appendChild(noteBox('A draft in the file is not shown: ' + dr.problem + '.', true));
-    } else li.appendChild(el('p', { className: 'rw-hn-small' }, [el('span', { className: 'rw-hn-badge rw-hn-badge--warn' }, 'No draft'), ' ', 'Nothing is written when there is no Show HN story with a cited problem.']));
+    } else li.appendChild(el('p', { className: 'rw-hn-small' }, [el('span', { className: 'rw-hn-badge rw-hn-badge--warn' }, 'No draft'), ' ', pids.length ? 'No draft was written for this company: see the note above.' : 'Nothing is written when there is no Show HN story with a cited problem.']));
     return li;
   }
 
@@ -400,24 +402,29 @@
   }
 
   // ---- input: a file, a drop or pasted text ----
+  var gen = 0, reader = null;  // a read that finishes after Clear, or after a newer load, must not render
+  function stopRead() { gen++; if (reader) { try { reader.abort(); } catch (e) {} reader = null; } }
   function readFile(file) {
     if (!file) return;
+    stopRead();
+    var mine = gen;
     if (file.size > MAX_BYTES) { var big = $('ck-out'); big.textContent = ''; big.appendChild(stateBox('The file is too large', 'A result file is a few kilobytes. This one is over 2 MB, so it is not a radar result.')); return; }
-    var r = new FileReader();
-    r.onload = function () { $('ck-paste').value = ''; render(String(r.result)); $('ck-out').scrollIntoView({ block: 'start' }); };
-    r.onerror = function () { var out = $('ck-out'); out.textContent = ''; out.appendChild(stateBox('The file could not be read', 'The browser could not open it. Try again, or paste its contents.')); };
+    var r = reader = new FileReader();
+    r.onload = function () { if (mine !== gen) return; reader = null; $('ck-paste').value = ''; render(String(r.result)); $('ck-out').scrollIntoView({ block: 'start' }); };
+    r.onerror = function () { if (mine !== gen) return; var out = $('ck-out'); out.textContent = ''; out.appendChild(stateBox('The file could not be read', 'The browser could not open it. Try again, or paste its contents.')); };
     r.readAsText(file);
   }
   $('ck-file').addEventListener('change', function (e) { readFile(e.target.files[0]); e.target.value = ''; });
-  $('ck-show').addEventListener('click', function () { render($('ck-paste').value); });
+  $('ck-show').addEventListener('click', function () { stopRead(); render($('ck-paste').value); });
   $('ck-example').addEventListener('click', function () {
+    stopRead();
     $('ck-paste').value = '';
     render($('ck-example-data').textContent);
     var out = $('ck-out');
     out.insertBefore(noteBox('This is an example, not your result. The developer "example-developer" and the repos are made up. The jobs, the Show HN thread and the two comments are real and public. The note was written by hand to show the format and is never sent anywhere.', true), out.firstChild);
     out.scrollIntoView({ block: 'start' });
   });
-  $('ck-clear').addEventListener('click', function () { $('ck-paste').value = ''; $('ck-out').textContent = ''; $('ck-file').value = ''; });
+  $('ck-clear').addEventListener('click', function () { stopRead(); $('ck-paste').value = ''; $('ck-out').textContent = ''; $('ck-file').value = ''; });
   var drop = $('ck-drop');
   ['dragenter', 'dragover'].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.add('rw-hn-drop--over'); }); });
   ['dragleave', 'drop'].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.remove('rw-hn-drop--over'); }); });
