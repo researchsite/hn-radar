@@ -2979,7 +2979,7 @@
     "company": "Who's hiring a customer success",
     "role": null,
     "location": null,
-    "remote": null,
+    "remote": true,
     "stack": [],
     "url": null,
     "raw_text": "Who's hiring a customer success, guide onboarding specialist and account management roles remotely in US UK and other European countries, Netherlands Germany or even worldwide",
@@ -3123,7 +3123,7 @@
   {
     "comment_id": 50466168,
     "company": "Native",
-    "role": null,
+    "role": "Founding Builder-in-Residence",
     "location": "San Francisco (preferred) or London",
     "remote": true,
     "stack": [],
@@ -3152,7 +3152,7 @@
   {
     "comment_id": 50477398,
     "company": "Genentech",
-    "role": null,
+    "role": "2027 Interns",
     "location": "ONSITE (South San Francisco, CA USA)",
     "remote": false,
     "stack": [
@@ -3207,7 +3207,7 @@
   {
     "comment_id": 50483905,
     "company": "Bechtel",
-    "role": null,
+    "role": "Penetration Tester",
     "location": "Remote or onsite (US + many countries)",
     "remote": true,
     "stack": [],
@@ -3275,21 +3275,6 @@
     "closed_comment_id": null
   },
   {
-    "comment_id": 50495944,
-    "company": "SEEKING FREELANCE",
-    "role": null,
-    "location": null,
-    "remote": true,
-    "stack": [
-      "Next.js",
-      "TypeScript"
-    ],
-    "url": "https://github.com/Noorhesham",
-    "raw_text": "SEEKING FREELANCE - Egypt (UTC+2, full EU/UK overlap) - Remote\nSenior Full-Stack & Creative Frontend Engineer (4+ yrs). I architect high-concurrency Next.js/TypeScript and Node/NestJS systems, Shopify Storefront/Fulfillment workflows, MCP AI pipelines, and 60fps WebGL/Three.js/GSAP interfaces.\nRecent shipped work: multi-country Shopify fulfillment & real-time inventory sync, AI web intelligence SaaS with MCP & Paddle metered billing (Crawleo), and a 60fps WebGL/GIS engine rendering thousands of live entities.\nPortfolio:noorhesham.com - GitHub: https://github.com/Noorhesham - Email:noordragon2004@gmail.com",
-    "closed": false,
-    "closed_comment_id": null
-  },
-  {
     "comment_id": 50500910,
     "company": "Early-stage Startup",
     "role": "Software Engineer & Data Analyst",
@@ -3309,7 +3294,7 @@
     "company": "New Product",
     "role": "Full Stack Engineer (mostly backend + API)",
     "location": "Meet In The Bay Area / Work Remotely",
-    "remote": null,
+    "remote": true,
     "stack": [
       "Python",
       "PostgreSQL",
