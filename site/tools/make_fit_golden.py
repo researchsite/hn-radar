@@ -8,15 +8,22 @@ either side:
     uv run python site/tools/make_fit_golden.py
 """
 
+import importlib.util
 import json
 import sys
 from pathlib import Path
+
+from pydantic import ValidationError
 
 from hnradar.fingerprint import build_profile
 from hnradar.match import score_job, top_matches
 from hnradar.models import Job
 
 OUT = Path(__file__).resolve().parents[2] / "tests" / "fixtures" / "fit_golden.json"
+
+_spec = importlib.util.spec_from_file_location("build_signals_data", Path(__file__).with_name("build_signals_data.py"))
+signals_model = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(signals_model)
 
 
 def repo(name, language=None, stars=0, topics=(), size=100, fork=False, description=None):
@@ -98,8 +105,64 @@ def top_cases() -> list[dict]:
     return cases
 
 
+def signals_cases() -> list[dict]:
+    """Files the browser must accept or refuse exactly as the Python model does (hn-fit.js checkSignals)."""
+    story = {"story_id": 900, "title": "Show HN: Acme", "domain": "acme.com", "url": "https://news.ycombinator.com/item?id=900"}
+    problem = {"summary": "It crashes on start", "comment_ids": [901, 902]}
+    evidence = [{"comment_id": 901, "text": "It crashed", "url": "u1"}, {"comment_id": 902, "text": "Same", "url": "u2"}]
+    ok = {"status": "ok", "show_hn": story, "problem": problem, "evidence": evidence}
+
+    def file(**entries):
+        return {"generated_at": "2026-11-22T12:00:00+00:00", "jobs": entries}
+
+    cases = {
+        "empty_jobs_object": file(),
+        "every_status_valid": file(a={"status": "no_show_hn", "note": "no domain in the job link"}, b={"status": "no_pulse", "show_hn": story},
+                                   c={"status": "not_enough_signal", "show_hn": story}, d={"status": "no_cited_problem", "show_hn": story}, e=ok),
+        "ok_entry_valid": file(**{"1": ok}),
+        "evidence_in_another_order": file(x={**ok, "evidence": list(reversed(evidence))}),
+        "extra_fields_are_ignored": file(x={**ok, "extra": 1}),
+        "null_optional_fields": file(x={"status": "no_show_hn", "show_hn": None, "problem": None, "note": None}),
+        "ok_without_evidence": file(x={**ok, "evidence": []}),
+        "ok_with_one_comment_missing": file(x={**ok, "evidence": evidence[:1]}),
+        "ok_with_an_extra_comment": file(x={**ok, "evidence": evidence + [{"comment_id": 903, "text": "t", "url": "u"}]}),
+        "ok_without_problem": file(x={"status": "ok", "show_hn": story, "evidence": evidence}),
+        "ok_without_story": file(x={**ok, "show_hn": None}),
+        "no_pulse_without_story": file(x={"status": "no_pulse"}),
+        "no_show_hn_with_a_problem": file(x={"status": "no_show_hn", "problem": problem}),
+        "no_pulse_with_evidence": file(x={"status": "no_pulse", "show_hn": story, "evidence": evidence}),
+        "unknown_status": file(x={"status": "maybe"}),
+        "missing_status": file(x={"note": "n"}),
+        "problem_with_no_comment_ids": file(x={**ok, "problem": {"summary": "s", "comment_ids": []}}),
+        "ok_with_empty_comment_ids_and_no_evidence": file(x={**ok, "problem": {"summary": "s", "comment_ids": []}, "evidence": []}),
+        "comment_id_as_text": file(x={**ok, "problem": {"summary": "s", "comment_ids": ["901", 902]}}),
+        "story_id_as_text": file(x={"status": "no_pulse", "show_hn": {**story, "story_id": "900"}}),
+        "story_id_boolean": file(x={"status": "no_pulse", "show_hn": {**story, "story_id": True}}),
+        "story_id_fraction": file(x={"status": "no_pulse", "show_hn": {**story, "story_id": 900.5}}),
+        "story_without_title": file(x={"status": "no_pulse", "show_hn": {k: v for k, v in story.items() if k != "title"}}),
+        "note_is_a_number": file(x={"status": "no_show_hn", "note": 5}),
+        "entry_is_a_list": file(x=[]),
+        "entry_is_null": file(x=None),
+        "jobs_is_a_list": {"generated_at": "t", "jobs": []},
+        "jobs_missing": {"generated_at": "t"},
+        "generated_at_missing": {"jobs": {}},
+        "generated_at_a_number": {"generated_at": 5, "jobs": {}},
+        "not_an_object": [],
+        "one_bad_entry_spoils_the_file": file(good=ok, bad={"status": "ok"}),
+    }
+    out = []
+    for name, data in cases.items():
+        try:
+            signals_model.SignalsFile.model_validate(data)
+            valid = True
+        except ValidationError:
+            valid = False
+        out.append({"name": name, "data": data, "valid": valid})
+    return out
+
+
 def make() -> dict:
-    return {"profile_cases": profile_cases(), "score_cases": score_cases(), "top_cases": top_cases()}
+    return {"profile_cases": profile_cases(), "score_cases": score_cases(), "top_cases": top_cases(), "signals_cases": signals_cases()}
 
 
 def render() -> str:

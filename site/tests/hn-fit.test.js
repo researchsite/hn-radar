@@ -21,7 +21,7 @@ for (const c of golden.top_cases) {
 }
 
 test('the golden file has cases of every kind', () => {
-  assert.ok(golden.profile_cases.length >= 10 && golden.score_cases.length >= 14 && golden.top_cases.length >= 8);
+  assert.ok(golden.profile_cases.length >= 10 && golden.score_cases.length >= 14 && golden.top_cases.length >= 8 && golden.signals_cases.length >= 25);
 });
 
 test('a profile that is not a list of repos is an error, not an empty profile', () => {
@@ -70,4 +70,42 @@ test('checkJobs: a good list passes, an empty or malformed one is an error', () 
     { ...job, company: 5 }, { ...job, stack: 'Python' }, { ...job, stack: [null, 'Python'] }, { ...job, stack: [3] }, { comment_id: 2, company: 'B' }]) {
     assert.throws(() => Fit.checkJobs([job, bad]), /record 1 of the list of jobs is not a job/);
   }
+});
+
+// ---- signals.json: the Python model decides which files are valid, the browser must agree ----
+for (const c of golden.signals_cases) {
+  test('signals: ' + c.name + (c.valid ? ' is accepted' : ' is refused'), () => {
+    if (c.valid) assert.equal(Fit.checkSignals(c.data), c.data);
+    else assert.throws(() => Fit.checkSignals(c.data), TypeError);
+  });
+}
+
+test('companyFromMatch: no signal means "not checked", never "no Show HN"', () => {
+  const match = Fit.topMatches(Fit.buildProfile('octo', [{ name: 'r', language: 'Python', size: 5 }]), [{ comment_id: 7, company: 'A', role: 'Dev', url: 'https://a.com', stack: ['Python'] }])[0];
+  for (const none of [undefined, null]) {
+    const c = Fit.companyFromMatch(match, none);
+    assert.equal(c.pulse_status, 'not_checked');
+    assert.equal(c.show_hn, null); assert.equal(c.problem, null); assert.equal(c.note, null);
+  }
+  const c = Fit.companyFromMatch(match, null);
+  assert.deepEqual([c.rank, c.company, c.role, c.job_comment_id, c.job_url, c.fit_score], [1, 'A', 'Dev', 7, 'https://a.com', 20]);
+  assert.deepEqual(c.fit_reasons, ["Your Python work matches this job's stack", 'Your repo r is written in Python']);
+  assert.equal(c.draft, null); assert.equal(c.draft_status, 'skipped');
+});
+
+test('companyFromMatch: each signal status carries over, and only ok has a problem and evidence', () => {
+  const sigs = golden.signals_cases.find((c) => c.name === 'every_status_valid').data.jobs;
+  const match = { rank: 2, score: 40, job: { comment_id: 9, company: 'B', role: null, url: null }, reasons: [{ text: 'why' }] };
+  const a = Fit.companyFromMatch(match, sigs.a);
+  assert.deepEqual([a.pulse_status, a.show_hn, a.problem, a.note], ['no_show_hn', null, null, 'no domain in the job link']);
+  for (const k of ['b', 'c', 'd']) {
+    const c = Fit.companyFromMatch(match, sigs[k]);
+    assert.equal(c.pulse_status, sigs[k].status); assert.equal(c.show_hn.story_id, 900); assert.equal(c.problem, null); assert.deepEqual(c.evidence, []);
+  }
+  const e = Fit.companyFromMatch(match, sigs.e);
+  assert.equal(e.pulse_status, 'ok');
+  assert.deepEqual(e.problem, { summary: 'It crashes on start', comment_ids: [901, 902] });
+  assert.deepEqual(e.evidence.map((x) => x.comment_id), [901, 902]);
+  e.problem.comment_ids.push(1); e.evidence.pop();
+  assert.deepEqual(sigs.e.problem.comment_ids, [901, 902]); assert.equal(sigs.e.evidence.length, 2);  // a copy: the loaded file is not changed
 });

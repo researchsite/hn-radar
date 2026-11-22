@@ -26,3 +26,12 @@ def test_every_local_script_and_style_a_page_loads_is_in_the_publish_table():
     table = next(line for line in README.splitlines() if line.startswith("| `hn.css`"))
     for name in referenced():
         assert f"`{name}`" in table and f"`includes/rw-{name}`" in table, f"{name} is loaded by a page but missing from the publish table in site/README.md"
+
+
+def test_every_data_file_the_page_loads_is_published():
+    """check.html reads data files by name; site/README.md must list them in the publish allowlist (and the private script has them)."""
+    page = (CAREERS / "check.html").read_text(encoding="utf-8")
+    files = set(re.findall(r"loadData\('([\w.-]+\.json)'", page))
+    assert {"jobs.json", "signals.json"} <= files
+    for name in files:
+        assert f"`{name}`" in README, f"{name} is read by check.html but not named in site/README.md"

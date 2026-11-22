@@ -23,7 +23,7 @@
 <div id="content" class="rw-hn-wrap">
   <div id="hn-pages"></div>
   <h1>Check yours</h1>
-  <p class="rw-hn-lead">See which companies in this month's "Who is hiring?" thread fit your public GitHub work. Type your username to see the fit here, in your browser. For what their users said on Hacker News and a short draft note, make a result file on your own computer with the command line and load it below.</p>
+  <p class="rw-hn-lead">See which companies in this month's "Who is hiring?" thread fit your public GitHub work. Type your username to see the fit here, in your browser, with any Show HN thread that links to the company's domain and what its users said in it. For a short draft note, make a result file on your own computer with the command line and load it below.</p>
 
   <section class="rw-hn-panel" aria-labelledby="ck-user-h">
     <h2 id="ck-user-h">Find matches from your GitHub username</h2>
@@ -34,7 +34,7 @@
       </div>
       <p class="rw-hn-actions"><button type="submit" class="rw-hn-btn rw-hn-btn--solid" id="ck-run">Find my matches</button></p>
     </form>
-    <p class="rw-hn-note"><strong>Privacy:</strong> your browser asks GitHub for your public repositories and matches them with this month's jobs on this page. Only GitHub receives the username, the way any site you visit receives your network address; this site only serves the page and the jobs file. Nothing is saved in this browser, no cookie is set and no analytics script runs here. GitHub allows 60 requests an hour from one network address, and 100 repositories per request. Only the fit is worked out here: Show HN threads, what users said and a draft need the command line below.</p>
+    <p class="rw-hn-note"><strong>Privacy:</strong> your browser asks GitHub for your public repositories and matches them with this month's jobs on this page. Only GitHub receives the username, the way any site you visit receives your network address; this site only serves the page and two data files (the jobs, and what their Show HN threads say), which are the same for every visitor and do not depend on your username. Nothing is saved in this browser, no cookie is set and no analytics script runs here. GitHub allows 60 requests an hour from one network address, and 100 repositories per request. A draft note needs a model, so only the command line below writes one.</p>
   </section>
 
   <section class="rw-hn-panel" aria-labelledby="ck-how">
@@ -257,7 +257,7 @@
 
   var MAX_BYTES = 2 * 1024 * 1024, MAX_COMPANIES = 10;
   var STATUSES = ['ok', 'partial', 'no_matches', 'failed'];
-  var PULSE_NOTES = { no_show_hn: 'No Show HN story that links to this job link\'s domain was found.', not_enough_signal: 'The Show HN thread has too few comments to say what people think.', no_cited_problem: 'No problem is backed by comments in the thread.' };
+  var PULSE_NOTES = { no_show_hn: 'No Show HN story that links to this job link\'s domain was found.', not_enough_signal: 'The Show HN thread has too few comments to say what people think.', no_cited_problem: 'No problem is backed by comments in the thread.', no_pulse: 'This Show HN thread has no saved summary of what people said yet. Run hnradar radar on your computer to make one.', not_checked: 'The Show HN data for this job is not available, so nothing is said about its thread.' };
 
   function int(n) { return typeof n === 'number' && isFinite(n) && Math.floor(n) === n; }
   function str(v) { return typeof v === 'string' ? clean(v) : ''; }
@@ -328,11 +328,6 @@
       H.extLink(H.hnItemUrl(c.job_comment_id), 'Hiring post on HN', 'Hiring post from ' + name)];
     var ju = H.safeUrl(c.job_url); if (ju) acts.push(H.extLink(ju.href, 'Job link (' + ju.host + ')', 'Job link from ' + name));
     li.appendChild(el('p', { className: 'rw-hn-actions' }, acts));
-    if (browserCards.has(c)) {  // only the fit exists here; say so instead of showing "no Show HN" or "no draft" as findings
-      li.appendChild(el('p', { className: 'rw-hn-small rw-hn-muted' }, 'Only the fit is worked out in the browser. Whether a Show HN thread links to this company, what its users said and a draft come from the command line (hnradar radar).'));
-      return li;
-    }
-
     var sh = c.show_hn;
     if (sh && typeof sh === 'object' && int(sh.story_id) && H.hnItemUrl(sh.story_id)) {
       var p = el('p', {}, [el('span', { className: 'rw-hn-badge rw-hn-badge--note' }, 'Show HN that links to ' + (str(sh.domain) || 'the job link\'s domain')), ' ',
@@ -354,6 +349,10 @@
     if (hidden) li.appendChild(noteBox('A point about what users said is not shown because it has no source comment on Hacker News.', true));
     if (!pids.length && PULSE_NOTES[c.pulse_status]) li.appendChild(el('p', { className: 'rw-hn-small rw-hn-muted' }, PULSE_NOTES[c.pulse_status]));
     if (typeof c.note === 'string' && clean(c.note)) li.appendChild(el('p', { className: 'rw-hn-small rw-hn-muted' }, 'Note: ' + clean(c.note)));
+    if (browserCards.has(c)) {  // the browser has no model: say so instead of showing "no draft" as a finding
+      li.appendChild(el('p', { className: 'rw-hn-small rw-hn-muted' }, 'A draft note is not written in the browser. hnradar radar on your computer writes one from the comments above.'));
+      return li;
+    }
     if (c.draft) {
       var dr = renderDraft(c.draft);
       if (dr.node) li.appendChild(dr.node);
@@ -446,32 +445,32 @@
 
   function showProblem(title, text) { var out = $('ck-out'); out.textContent = ''; out.appendChild(stateBox(title, text)); }
 
-  var JOBS_TIMEOUT_MS = 20000;
-  function loadJobs(signal) {  // a stalled request ends in a named failure after JOBS_TIMEOUT_MS, like the GitHub request (S3)
+  var DATA_TIMEOUT_MS = 20000;
+  // One static file of this site. A stalled request ends in a named failure after DATA_TIMEOUT_MS, like the GitHub request (S3).
+  // The visitor's profile is never part of this request: the same two files are fetched for everyone.
+  function loadData(file, signal, check) {
     var c = new AbortController(), timedOut = false;
     var onAbort = function () { c.abort(); };
     signal.addEventListener('abort', onAbort, { once: true });
-    var timer = setTimeout(function () { timedOut = true; c.abort(); }, JOBS_TIMEOUT_MS);
+    var timer = setTimeout(function () { timedOut = true; c.abort(); }, DATA_TIMEOUT_MS);
     var finish = function () { clearTimeout(timer); signal.removeEventListener('abort', onAbort); };
-    return fetch(H.paths.data + 'jobs.json', { signal: c.signal, cache: 'no-cache' }).then(function (r) {
+    return fetch(H.paths.data + file, { signal: c.signal, cache: 'no-cache' }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       var modified = r.headers.get('Last-Modified');
-      return r.json().then(function (d) {
-        HNFit.checkJobs(d);  // throws on an empty list or a record that is not a job
-        return { jobs: d, modified: modified };
-      });
+      return r.json().then(function (d) { check(d); return { data: d, modified: modified }; });
     }).then(function (v) { finish(); return v; }, function (e) {
       finish();
-      if (timedOut) throw new Error('no answer within ' + (JOBS_TIMEOUT_MS / 1000) + ' seconds');
+      if (timedOut) throw new Error('no answer within ' + (DATA_TIMEOUT_MS / 1000) + ' seconds');
       throw e;
     });
   }
+  function loadJobs(signal) { return loadData('jobs.json', signal, HNFit.checkJobs).then(function (v) { return { jobs: v.data, modified: v.modified }; }); }
+  function loadSignals(signal) { return loadData('signals.json', signal, HNFit.checkSignals).then(function (v) { return { signals: v.data, modified: v.modified }; }); }
 
   // The result in the shape of a radar file, so the same cards draw it. Only fit is known here: show_hn, problem and draft stay empty.
-  function resultFromMatches(name, profile, matches, jobCount) {
+  function resultFromMatches(name, profile, matches, signals) {
     var companies = matches.map(function (m) {
-      var c = { rank: m.rank, company: m.job.company, role: m.job.role, job_comment_id: m.job.comment_id, job_url: m.job.url, fit_score: m.score,
-        fit_reasons: m.reasons.map(function (r) { return r.text; }), show_hn: null, pulse_status: 'no_show_hn', problem: null, draft_status: 'skipped', draft: null, note: null };
+      var c = HNFit.companyFromMatch(m, signals ? signals.jobs[String(m.job.comment_id)] : null);
       browserCards.add(c);
       return c;
     });
@@ -505,14 +504,23 @@
           var err = new Error('The list of jobs could not be loaded (' + clean(String(e && e.message || e)) + '). Reload the page and try again.'); err.jobs = true; throw err;
         });
       })
+      .then(function (j) {  // what Show HN and the comments say about each job: one file for everyone; without it the fit is still shown
+        if (mine !== gen || !j) return null;
+        return loadSignals(signal).then(function (s) { j.signals = s.signals; return j; }, function (e) {
+          if (mine !== gen || (e && e.name === 'AbortError')) return null;
+          j.signals = null; j.signalsError = clean(String(e && e.message || e)); return j;
+        });
+      })
       .then(function (loaded) {
         if (mine !== gen || !loaded) return;
         var profile = HNFit.buildProfile(name, found);
-        var result = resultFromMatches(name, profile, HNFit.topMatches(profile, loaded.jobs, BROWSER_TOP), loaded.jobs.length);
+        var result = resultFromMatches(name, profile, HNFit.topMatches(profile, loaded.jobs, BROWSER_TOP), loaded.signals);
         show(result, { browser: true });
         var when = loaded.modified ? new Date(loaded.modified) : null;
         var out = $('ck-out'), head = out.querySelector('section');
         if (head) head.appendChild(el('p', { className: 'rw-hn-small rw-hn-muted' }, 'Compared with ' + loaded.jobs.length + ' jobs' + (when && !isNaN(when.getTime()) ? ' (data last updated ' + when.toLocaleDateString('en-GB', { dateStyle: 'long', timeZone: 'UTC' }) + ' UTC)' : '') + '.'));
+        if (loaded.signalsError) out.insertBefore(noteBox('The Show HN data could not be loaded (' + loaded.signalsError + '), so the fit is shown without it and nothing is said about Show HN threads. Reload the page to try again.', true), out.children[1] || null);
+        else if (head && loaded.signals) head.appendChild(el('p', { className: 'rw-hn-small rw-hn-muted' }, 'Show HN threads and what users said come from a file made ' + (isNaN(new Date(loaded.signals.generated_at).getTime()) ? 'at an unknown time' : new Date(loaded.signals.generated_at).toLocaleDateString('en-GB', { dateStyle: 'long', timeZone: 'UTC' }) + ' UTC') + ' for every job, the same for every visitor.'));
         out.scrollIntoView({ block: 'start' });
       })
       .catch(function (e) {

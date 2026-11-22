@@ -35,6 +35,15 @@ def repo_for_match(profile: Profile, match: Match):
     return next((r for r in profile.notable_repos if any(x.kind == "repo" and x.evidence == r.name for x in match.reasons)), None)
 
 
+def story_from_result(domain: str, result: ShowHNResult) -> StoryLookup:
+    """The first story of a Show HN result that links to `domain`, or why there is none. Pure: shared by `find_story`
+    (live search) and the site's offline builder (saved results), so both pick the same story."""
+    story = next((c for c in result.candidates if c.domain_match), None)
+    if result.low_confidence or story is None:
+        return StoryLookup(domain, None, f"no Show HN links to {domain}", result)
+    return StoryLookup(domain, story, None, result)
+
+
 def find_story(company: str, job_url: str | None, search=hn.search_show_hn) -> StoryLookup:
     """The Show HN story that links to the job link's own domain. A platform domain is skipped before any request."""
     domain = url_domain(job_url)
@@ -43,11 +52,7 @@ def find_story(company: str, job_url: str | None, search=hn.search_show_hn) -> S
     if is_platform_domain(domain):
         return StoryLookup(domain, None, f"platform domain ({domain}); a story that links to it may belong to someone else")
     found = search(company, domain=domain)
-    result = build_result(company, domain, found["hits"], found["total_hits"])
-    story = next((c for c in result.candidates if c.domain_match), None)
-    if result.low_confidence or story is None:
-        return StoryLookup(domain, None, f"no Show HN links to {domain}", result)
-    return StoryLookup(domain, story, None, result)
+    return story_from_result(domain, build_result(company, domain, found["hits"], found["total_hits"]))
 
 
 def story_children(story_id: int, fetch=hn.fetch_item) -> list[dict] | None:
