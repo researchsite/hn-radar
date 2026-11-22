@@ -330,3 +330,8 @@ def test_negated_remotely_is_not_remote():
 
 def test_a_product_description_is_not_a_role():
     assert parse_comment(1, "Acme | Form builder SaaS | Berlin").role is None
+
+
+def test_a_positive_sentence_with_cant_and_remotely_is_still_remote():
+    for text in ("We can&#x27;t wait to work remotely with you", "You won&#x27;t regret working remotely with us"):
+        assert parse_comment(1, f"Foo | Engineer | Berlin<p>{text}").remote is True, text

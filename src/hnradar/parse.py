@@ -33,7 +33,7 @@ _COMPANY_END = re.compile(r"\s+(?:-|–|—|is hiring|are hiring)(?=\s|$)|[,.:;(
 
 _NOT_REMOTE = re.compile(
     r"\b(?:no|not|without)\s+remote(?:ly)?\b|\bon-?site only\b|"
-    r"\b(?:can['’]?t|cannot|can not|won['’]t|don['’]t|do not|doesn['’]t|unable to)\s+(?:\w+\s+){0,3}?remotely\b|"
+    r"\b(?:can['’]?t|cannot|can not|won['’]t|don['’]t|do not|doesn['’]t|unable to)\s+(?:hire|employ|accept|support|allow|offer|consider)\s+(?:\w+\s+){0,2}?remotely\b|"
     r"\b(?:don't|do not|doesn't)\s+(?:do|offer|support|allow)\s+remote\b|"
     r"\bremote(?:\s+work)?\s+(?:(?:is|are)\s+)?(?:not|isn['’]t|aren['’]t)\s+"
     r"(?:available|possible|offered|supported|an option)\b|"
