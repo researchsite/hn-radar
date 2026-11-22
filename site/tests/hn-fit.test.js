@@ -35,9 +35,14 @@ test('jobs that are not a list are an error', () => {
   assert.throws(() => Fit.topMatches(p, [], -1), RangeError);
 });
 
-test('items that are not objects are skipped, not crashed on', () => {
-  const p = Fit.buildProfile('octo', [null, 3, 'x', [], { name: 'ok', language: 'Python', size: 5 }]);
-  assert.deepEqual(p.languages, [{ name: 'Python', size_kb: 5 }]);
+test('a repo entry that is not an object with a name is an error, not a smaller profile', () => {
+  for (const bad of [null, 3, 'x', [], {}, { name: 5 }]) {
+    assert.throws(() => Fit.buildProfile('octo', [{ name: 'ok', language: 'Python', size: 5 }, bad]), TypeError);
+  }
+});
+
+test('a job entry that is not an object is skipped', () => {
+  const p = Fit.buildProfile('octo', [{ name: 'ok', language: 'Python', size: 5 }]);
   assert.deepEqual(Fit.topMatches(p, [null, 7, { comment_id: 1, company: 'A', stack: ['Python'] }]).map((m) => m.job.company), ['A']);
 });
 

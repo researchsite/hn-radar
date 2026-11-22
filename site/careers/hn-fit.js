@@ -5,8 +5,10 @@
  * and must give the same answer here (site/tests/hn-fit.test.js). Change both sides and the cases together.
  *
  * Two known differences, both outside the golden cases on purpose:
- *  - match.py also drops posts that are a person's own profile (parse.is_candidate_profile). The jobs file this code
- *    reads is made by `hnradar fetch-hiring`, which has already dropped them, so the port does not repeat the parser.
+ *  - match.py also drops posts that are a person's own profile (parse.is_candidate_profile). The port does not repeat
+ *    the parser; it relies on the jobs file holding openings only. That is enforced where the file is made and used:
+ *    `hnradar fetch-hiring` drops them, tests/test_jobs_file.py fails on the committed file if one is left, and
+ *    site/tools/build_careers_index.py refuses a file that holds one.
  *  - strings are ordered by UTF-16 code unit here and by code point in Python. They differ only for characters
  *    outside the Basic Multilingual Plane; GitHub language, topic and repo names are ASCII.
  */
@@ -39,7 +41,12 @@
   // Forks are excluded everywhere: they describe someone else's work.
   function buildProfile(username, repos) {
     if (!Array.isArray(repos)) throw new TypeError('repos must be a list');
-    var own = repos.filter(function (r) { return isObject(r) && !r.fork && typeof r.name === 'string'; });
+    // A response that is not a list of named repos is not a list of repos: fail like the Python code does, never
+    // build a profile from a part of it (site rule S3).
+    repos.forEach(function (r, i) {
+      if (!isObject(r) || typeof r.name !== 'string') throw new TypeError('repo ' + i + ' is not an object with a name');
+    });
+    var own = repos.filter(function (r) { return !r.fork; });
 
     var sizes = new Map();
     own.forEach(function (r) {
