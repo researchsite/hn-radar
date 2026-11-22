@@ -437,7 +437,6 @@
     gen++;
     if (reader) { try { reader.abort(); } catch (e) {} reader = null; }
     if (ctl) { ctl.abort(); ctl = null; }
-    $('ck-run').disabled = false;
   }
 
   // ---- input: a GitHub username, matched in the browser ----
@@ -479,12 +478,12 @@
     var name = String(raw || '').trim().replace(/^@/, '');
     stopRead();
     var mine = gen;
+    if (!window.HNFit || !window.HNGitHub) { showProblem('A script of this page did not load', 'Reload the page. If it happens again, the site files are incomplete: the page needs hn-fit.js and hn-github.js next to it.'); return; }
     if (!name) { showProblem('Type a username first', 'Enter your GitHub username, for example octocat.'); return; }
     if (!HNGitHub.USERNAME_RE.test(name)) { showProblem(PROBLEM_TITLES.invalid_username, 'A username has 1 to 39 letters, digits or single hyphens, and does not start or end with a hyphen.'); return; }
     ctl = new AbortController();
     var signal = ctl.signal;
     $('ck-paste').value = '';
-    $('ck-run').disabled = true;
     showProblem('Asking GitHub', 'Reading the public repositories of ' + name + '. Nothing else is sent.');
     var found;
     HNGitHub.fetchRepos(name, { fetch: window.fetch.bind(window), signal: signal })
@@ -514,7 +513,7 @@
         } else if (e && e.jobs) showProblem('The list of jobs could not be loaded', clean(e.message));
         else showProblem(PROBLEM_TITLES.bad_response, 'The answer from GitHub did not have the shape this page expects, so no profile was made.');
       })
-      .then(function () { if (mine === gen) { $('ck-run').disabled = false; ctl = null; } });
+      .then(function () { if (mine === gen) ctl = null; });
   }
   $('ck-form').addEventListener('submit', function (e) { e.preventDefault(); runBrowser($('ck-user').value); });
   function readFile(file) {

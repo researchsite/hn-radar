@@ -152,7 +152,7 @@
     if (!jobs.length) throw new TypeError('the list of jobs is empty');
     jobs.forEach(function (j, i) {
       if (!isObject(j) || typeof j.comment_id !== 'number' || !isFinite(j.comment_id) || Math.floor(j.comment_id) !== j.comment_id || j.comment_id <= 0 ||
-          typeof j.company !== 'string' || !Array.isArray(j.stack)) {
+          typeof j.company !== 'string' || !Array.isArray(j.stack) || !j.stack.every(function (t) { return typeof t === 'string'; })) {
         throw new TypeError('record ' + i + ' of the list of jobs is not a job');
       }
     });

@@ -67,7 +67,7 @@ test('checkJobs: a good list passes, an empty or malformed one is an error', () 
   assert.throws(() => Fit.checkJobs(null), TypeError);
   assert.throws(() => Fit.checkJobs({}), TypeError);
   for (const bad of [null, 3, [], {}, { ...job, comment_id: 0 }, { ...job, comment_id: -4 }, { ...job, comment_id: 1.5 }, { ...job, comment_id: '1' },
-    { ...job, company: 5 }, { ...job, stack: 'Python' }, { comment_id: 2, company: 'B' }]) {
+    { ...job, company: 5 }, { ...job, stack: 'Python' }, { ...job, stack: [null, 'Python'] }, { ...job, stack: [3] }, { comment_id: 2, company: 'B' }]) {
     assert.throws(() => Fit.checkJobs([job, bad]), /record 1 of the list of jobs is not a job/);
   }
 });

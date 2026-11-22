@@ -49,7 +49,7 @@ On the live site these are shared folders at the site root, so the move changes 
 | Kind | Dev (here) | Live site |
 |---|---|---|
 | Pages | `careers/` | `careers/` |
-| `hn.css`, `hn.js` | `careers/` | `includes/rw-hn.css`, `includes/rw-hn.js` |
+| `hn.css`, `hn.js`, `hn-fit.js`, `hn-github.js` | `careers/` | `includes/rw-hn.css`, `includes/rw-hn.js`, `includes/rw-hn-fit.js`, `includes/rw-hn-github.js` |
 | Data (JSON) | `careers/data/` | `data/` |
 | Pictures | `careers/images/` | `images/careers/` |
 | Videos | `careers/videos/careers-<name>.mp4` | `images/videos/careers-<name>.mp4` |
@@ -153,8 +153,8 @@ Open http://localhost:8000/careers/. Use a server, not a `file://` URL, because 
 
 Do this when the pages are done, in a separate branch of the site project, and review that pull request there. The site project deploys from its **`gh-pages`** branch (there is no `main`): branch from it and open the pull request against it.
 
-1. Run the sync script, then `powershell -File site/_private/publish-to-site.ps1` (a dry run that lists the files) and again with `-Apply`. It copies the pages to `careers/` (with the two tags rewritten), `hn.css` and `hn.js` to `includes/rw-hn.css` and `includes/rw-hn.js`, `careers/data/*` to the site's `data/`, `careers/images/*` to `images/careers/` and `careers/videos/*` to `images/videos/` and the search index `careers/pagefind/` to the same place (replacing it), and rewrites the `PATHS` line in the copied `rw-hn.js` to those places. Nothing else is copied: not the dev copies of includes and fonts, not `data/profiles/`. It also lists leftovers from the earlier layout (`careers/data/`, `careers/hn.css`, `careers/hn.js` in the site project) to delete there.
-   By hand instead: copy the pages; copy `hn.css` and `hn.js` to `includes/rw-hn.css` and `includes/rw-hn.js` and change the two tags in each page; move the data, pictures and videos as in the table above; set `PATHS` in `rw-hn.js` to `{ data: '../data/', images: '../images/careers/', videos: '../images/videos/', search: './pagefind/' }`.
+1. Run the sync script, then `powershell -File site/_private/publish-to-site.ps1` (a dry run that lists the files) and again with `-Apply`. It copies the pages to `careers/` (with the two tags rewritten), `hn.css`, `hn.js`, `hn-fit.js` and `hn-github.js` to `includes/rw-hn.css`, `includes/rw-hn.js`, `includes/rw-hn-fit.js` and `includes/rw-hn-github.js`, `careers/data/*` to the site's `data/`, `careers/images/*` to `images/careers/` and `careers/videos/*` to `images/videos/` and the search index `careers/pagefind/` to the same place (replacing it), and rewrites the `PATHS` line in the copied `rw-hn.js` to those places. Nothing else is copied: not the dev copies of includes and fonts, not `data/profiles/`. It also lists leftovers from the earlier layout (`careers/data/`, `careers/hn.css`, `careers/hn.js` in the site project) to delete there.
+   By hand instead: copy the pages; copy `hn.css`, `hn.js`, `hn-fit.js` and `hn-github.js` to `includes/rw-hn.css`, `includes/rw-hn.js`, `includes/rw-hn-fit.js` and `includes/rw-hn-github.js` and change the `./hn*.css` and `./hn*.js` tags in each page that uses them (`check.html` loads all four scripts; every other page loads `hn.css` and `hn.js`); move the data, pictures and videos as in the table above; set `PATHS` in `rw-hn.js` to `{ data: '../data/', images: '../images/careers/', videos: '../images/videos/', search: './pagefind/' }`.
 2. Registering the pages (nav entry, `?v=` bump, `sitemap.xml`, `llms.txt`) is done by the site's own job: do not do it by hand here. The site's `pagefind.yml` and `pagefind/` are not touched either: careers has its own index (see above).
 3. Do not `git add -A` in the site project (it has unrelated daily changes); add explicit paths.
 4. Open `/careers/` locally and check the nav, footer, dark mode, search and the JSON paths.
