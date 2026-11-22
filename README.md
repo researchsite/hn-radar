@@ -97,6 +97,15 @@ states. Nothing is sent. A careers subdomain (`jobs.acme.com`) is searched as gi
 platform (`acme.github.io`) and a company that is itself a listed platform are skipped on purpose: the safe
 side, not a solved case. If the 10 best matches give no draft, it says lower-ranked matches were not checked.
 
+### radar
+
+```
+uv run hnradar radar octo                          # username only: fingerprint, match, Show HN, pulse, draft
+uv run hnradar radar octo --json --out radar.json  # JSON to stdout and to a file (about one person: keep it private)
+```
+
+The end-to-end run, using the same functions as the single commands. It prints one progress line per step on stderr, then the top 3 companies: fit reasons, the Show HN story that links to the job link's domain, the problem users reported with its comment ids, and a 5-line draft with its evidence. A company with no such story, no cited problem or no matched repo is listed with the reason and gets no draft; the run is then `partial`. A user with no public repos or no strong match gets a friendly message (exit 0). A step that fails (GitHub, HN, the model, an unreadable file) stops the run with `Error: radar stopped at step '<name>': ...` and exit 1; no companies are shown, and `--out` records `status: failed` with the step. A saved pulse (`data/pulse/<story_id>.json`) is used instead of asking the model. A real run is in [docs/radar-example.md](docs/radar-example.md). Nothing is sent.
+
 ## Typical session
 
 ```

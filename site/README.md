@@ -15,7 +15,7 @@ site/
     company.html         without ?job=: directory of every company with a teaser and a search box;
                          with ?job=<comment_id>: that company's hiring post, Show HN posts, pulse (issue 41)
     journey.html         placeholder: coming soon (issue 31)
-    check.html           placeholder: coming soon (issue 31)
+    check.html           Check yours: load the radar.json that `hnradar radar USER --out radar.json` made on your own computer and see it (issue 31)
     hn.css, hn.js        shared styles and helpers (text cleaning, safe links, designed states); hn.js holds PATHS
     data/jobs.json       dev copy of ../../data/jobs.json (git-ignored, refreshed by the sync script)
     images/, videos/     pictures and videos used by the pages (committed; video names start with careers-)
@@ -97,6 +97,19 @@ uv run python site/tools/build_careers_index.py     # after every refresh of car
 - If the index cannot be loaded or queried, the box falls back to the old match on company, role, location and technologies and says so on the page.
 - Pagefind matches word starts (`rus` finds `rust`), not letters inside a word (the old box did). Several words must all appear.
 - `publish-to-site.ps1` refuses to publish an index that is older than `careers/data/jobs.json`.
+
+### Check yours: how to try it without committing anything
+`check.html` shows a result file made by `hnradar radar`. The file is read with `FileReader` in the browser tab: no `fetch`, no storage, no cookie, no request carrying it. The page deliberately does **not** load `includes/analytics.js` (Microsoft Clarity records what is on screen). Every text from the file is written with `textContent`; a draft is shown only if its claim line cites a comment; a point about what users said with no valid comment id is dropped with a note; a `failed` result shows only the failed step.
+
+```powershell
+powershell -File site/_private/sync-dev-assets.ps1        # once: dev copies of the site's includes and fonts
+python -m http.server 8000 --directory site               # then open http://localhost:8000/careers/check.html
+uv run hnradar radar YOUR-GITHUB-USERNAME --out radar.json   # your own result; then drop radar.json on the page
+```
+
+The **Try an example** button shows a made-up developer (`example-developer`) matched against three real jobs, with the real SadServers Show HN comments. The data sits in the page as `<script type="application/json" id="ck-example-data">` (no request), and a warning note above the result says it is an example. The draft in it was written by hand, never by a model and never sent; it is the only draft in the repository.
+
+Nothing needs to be committed: the page is a plain file under `site/`, the server only serves your working copy. For every state without running the model, use the local, git-ignored samples in `site/_private/samples/` (`SYNTHETIC` ones come from the test fakes, not from real people): three drafts, partial, no matches, failed, hostile text with invalid parts, and a file that is not a result.
 
 ### The site's own icon and manifest files
 The shared nav script (`includes/rw-nav.js`) adds the favicon, `apple-touch-icon` and `site.webmanifest` links to the `<head>` of every page. The pages here do not reference them and do not need them. They are copied into the dev folder only so the preview server does not log 404s for them.

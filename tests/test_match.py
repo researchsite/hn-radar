@@ -158,3 +158,11 @@ def test_blank_terms_never_match():
     p = Profile(username="x", languages=[Language(name="  ", size_kb=1)], topics=["", "!!"])
 
     assert top_matches(p, [job(1, ["", "  ", "!!"])]) == []
+
+
+def test_a_persons_looking_for_work_post_is_never_matched_as_a_job():
+    person = Job(comment_id=9, company="I'm Sam Jones", stack=["Python"], remote=True,
+                 raw_text="I'm Sam Jones, a full-stack engineer.\nLocation: Berlin\nRemote: Yes\nWilling to relocate: No\nTechnologies: Python")
+    opening = job(1, ["Python"])
+    assert [m.job.comment_id for m in top_matches(PROFILE, [person, opening])] == [1]
+    assert top_matches(PROFILE, [person]) == []

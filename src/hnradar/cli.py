@@ -11,13 +11,13 @@ import typer
 
 from hnradar.closed import closing_reply_id
 from hnradar.draft.write import write_draft
-from hnradar.fingerprint import build_profile
 from hnradar.match import top_matches
 from hnradar.models import Job, MatchResult, Profile
 from hnradar.parse import is_candidate_profile, parse_comment
-from hnradar.pulse.cluster import MIN_COMMENTS, PulseError, cluster, select_comments
-from hnradar.pulse.schema import PulseResult
-from hnradar.showhn import build_result, is_platform_domain, normalize_domain, url_domain
+from hnradar import radar as radar_mod
+from hnradar.pulse.cluster import MIN_COMMENTS, PulseError, cluster
+from hnradar.showhn import build_result, normalize_domain
+from hnradar.steps import save_profile, cited_bug, find_story, repo_for_match, story_children
 from hnradar.sources import github, hn, ollama
 
 DRAFT_MATCHES = 10  # best matches tried, in order, until one has a Show HN with a cited bug
@@ -153,16 +153,12 @@ def fingerprint(
 ) -> None:
     """Summarize a GitHub user's languages, topics and notable repos from public data."""
     try:
-        repos = github.fetch_repos(username)
+        profile, out, n_repos = save_profile(username, out_dir)
     except (github.GitHubError, httpx.HTTPError) as exc:
         typer.echo(f"Error: {exc}", err=True)
         raise typer.Exit(1) from exc
 
-    profile = build_profile(username, repos)
-    out = out_dir / f"{username}.json"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(profile.model_dump_json(indent=2) + "\n", encoding="utf-8")
-    if not repos:
+    if not n_repos:
         typer.echo(f"{username} has no public repos; wrote an empty profile to {out}")
     else:
         typer.echo(f"Wrote profile for {username} ({len(profile.languages)} languages) to {out}")
@@ -198,6 +194,12 @@ def _profile_path(profiles_dir: Path, username: str) -> Path:
     return found[0] if found else exact
 
 
+def _parse_jobs(raw_jobs) -> list[Job]:
+    if not isinstance(raw_jobs, list):
+        raise ValueError("expected a list of jobs")
+    return [Job.model_validate(item) for item in raw_jobs]
+
+
 def _load_profile_and_jobs(username: str, jobs_file: Path, profiles_dir: Path) -> tuple[Profile, list[Job]]:
     """Shared by `match` and `draft`: the saved profile and jobs, or an `Error:` line and exit 1."""
     if not github.USERNAME_RE.fullmatch(username):  # also keeps the path inside the profiles dir
@@ -209,9 +211,7 @@ def _load_profile_and_jobs(username: str, jobs_file: Path, profiles_dir: Path) -
     raw_jobs = _read_json_file(jobs_file, "jobs file", "Run `hnradar fetch-hiring` first.")
     try:
         profile = Profile.model_validate(raw_profile)
-        if not isinstance(raw_jobs, list):
-            raise ValueError("expected a list of jobs")
-        jobs = [Job.model_validate(item) for item in raw_jobs]
+        jobs = _parse_jobs(raw_jobs)
     except ValueError as exc:  # pydantic's ValidationError is a ValueError
         typer.echo(f"Error: {profile_path} or {jobs_file} has an unexpected shape: {exc}", err=True)
         raise typer.Exit(1) from exc
@@ -309,30 +309,21 @@ def pulse(
             typer.echo(f"{kind:<3} | {_terminal_safe(it.summary)} | comments {ids}")
 
 
-def _saved_pulse(pulse_dir: Path, story_id: int) -> PulseResult | None:
-    path = pulse_dir / f"{story_id}.json"
-    if not path.exists():
-        return None
-    try:
-        return PulseResult.model_validate_json(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:  # a saved pulse that cannot be read is not silently re-made
-        raise ValueError(f"could not read the saved pulse {path}: {type(exc).__name__}") from exc
-
-
-def _cited_bug(story_id: int, children: list[dict], pulse_dir: Path, client) -> tuple[str, list[dict]] | None:
-    """The first pulse bug whose cited comments are all in the thread, as (summary, [{"id", "text"}])."""
-    result = _saved_pulse(pulse_dir, story_id)
-    if result is not None and result.story_id != story_id:  # a pulse copied or renamed from another story
-        raise ValueError(f"the saved pulse {pulse_dir / f'{story_id}.json'} is for story {result.story_id}, not {story_id}")
-    if result is None:
-        result = cluster(story_id, "", [c for c in children if not isinstance(c, dict) or c.get("text")], client)
-    if result is None:
-        return None
-    by_id = {c["id"]: c for c in select_comments(children)[0]}
-    for item in (i for i in result.items if i.kind == "bug"):
-        if all(cid in by_id for cid in item.comment_ids):
-            return item.summary, [by_id[cid] for cid in item.comment_ids]
-    return None
+def _echo_draft(drafted) -> None:
+    """The draft, then the evidence under it. Shared by `draft` and `radar`."""
+    typer.echo(f"Draft for {_terminal_safe(drafted.company)} ({drafted.model}), using your repo {_terminal_safe(drafted.repo)}:")
+    typer.echo("")
+    for line in drafted.lines:
+        typer.echo(_terminal_safe(line.text))
+    typer.echo("")
+    typer.echo("Evidence (read it before you send anything; nothing is sent):")
+    for n, line in enumerate(drafted.lines, start=1):
+        if line.comment_ids:
+            typer.echo(f"line {n} cites comment {', '.join(str(i) for i in line.comment_ids)}")
+    typer.echo(f"repo {_terminal_safe(drafted.repo)} | {_terminal_safe(drafted.repo_language) or '-'} | {_terminal_safe(drafted.repo_description) or 'no description'}")
+    for e in drafted.evidence:
+        typer.echo(f"comment {e.comment_id} | {_terminal_safe(e.text)} | {e.url}")
+    typer.echo(f"Show HN: https://news.ycombinator.com/item?id={drafted.story_id} (links to {drafted.domain})")
 
 
 @app.command("draft")
@@ -358,25 +349,20 @@ def draft(
         cut = len(matches) > DRAFT_MATCHES
         for m in matches[:DRAFT_MATCHES]:
             company = m.job.company
-            repo = next((r for r in profile.notable_repos if any(x.kind == "repo" and x.evidence == r.name for x in m.reasons)), None)
-            domain = url_domain(m.job.url)
-            if repo is None or domain is None:
-                skipped.append(f"{company}: {'no matched repo' if repo is None else 'no domain in the job link'}")
+            repo = repo_for_match(profile, m)
+            if repo is None:
+                skipped.append(f"{company}: no matched repo")
                 continue
-            if is_platform_domain(domain):  # before any request: a failed search must not stop the other matches
-                skipped.append(f"{company}: platform domain ({domain}); a story that links to it may belong to someone else")
+            lookup = find_story(company, m.job.url)  # a platform domain is skipped before any request
+            if lookup.story is None:
+                skipped.append(f"{company}: {lookup.skip}")
                 continue
-            found = hn.search_show_hn(company, domain=domain)
-            result = build_result(company, domain, found["hits"], found["total_hits"])
-            story = next((c for c in result.candidates if c.domain_match), None)
-            if result.low_confidence or story is None:
-                skipped.append(f"{company}: no Show HN links to {domain}")
-                continue
-            item = hn.fetch_item(story.story_id)
-            if not isinstance(item, dict) or item.get("type") != "story" or not isinstance(item.get("children", []), list):
+            story, domain = lookup.story, lookup.domain
+            children = story_children(story.story_id)
+            if children is None:
                 skipped.append(f"{company}: {story.story_id} is not a story")
                 continue
-            bug = _cited_bug(story.story_id, item.get("children") or [], pulse_dir, client)
+            bug = cited_bug(story.story_id, children, pulse_dir, client)
             if bug is None:
                 skipped.append(f"{company}: no cited bug in the Show HN comments")
                 continue
@@ -401,16 +387,84 @@ def draft(
             typer.echo(f"Only the {DRAFT_MATCHES} best matches were checked; lower-ranked matches were not.")
         return
 
-    typer.echo(f"Draft for {_terminal_safe(drafted.company)} ({drafted.model}), using your repo {_terminal_safe(drafted.repo)}:")
-    typer.echo("")
-    for line in drafted.lines:
-        typer.echo(_terminal_safe(line.text))
-    typer.echo("")
-    typer.echo("Evidence (read it before you send anything; nothing is sent):")
-    for n, line in enumerate(drafted.lines, start=1):
-        if line.comment_ids:
-            typer.echo(f"line {n} cites comment {', '.join(str(i) for i in line.comment_ids)}")
-    typer.echo(f"repo {_terminal_safe(drafted.repo)} | {_terminal_safe(drafted.repo_language) or '-'} | {_terminal_safe(drafted.repo_description) or 'no description'}")
-    for e in drafted.evidence:
-        typer.echo(f"comment {e.comment_id} | {_terminal_safe(e.text)} | {e.url}")
-    typer.echo(f"Show HN: https://news.ycombinator.com/item?id={drafted.story_id} (links to {drafted.domain})")
+    _echo_draft(drafted)
+
+
+@app.command("radar")
+def radar(
+    username: Annotated[str, typer.Argument(help="Public GitHub username.")],
+    model: Annotated[str, typer.Option(help="Ollama model for the pulse and the drafts.")] = ollama.DEFAULT_MODEL,
+    jobs_file: Annotated[Path, typer.Option("--jobs", help="Jobs file from `hnradar fetch-hiring`.")] = Path("data/jobs.json"),
+    profiles_dir: Annotated[Path, typer.Option(help="Directory for <user>.json (the saved profile).")] = Path("data/profiles"),
+    pulse_dir: Annotated[Path, typer.Option(help="Directory holding saved pulses (`hnradar pulse`).")] = Path("data/pulse"),
+    out: Annotated[Path | None, typer.Option(help="Also write the full result (JSON) to this file. It is about one person: keep it private.")] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="Print the result as JSON instead of text.")] = False,
+) -> None:
+    """From a GitHub username to the top 3 companies, each with fit reasons, a cited problem and a draft.
+
+    Runs fingerprint, match, Show HN, pulse and draft in order, one progress line per step on stderr. A step that
+    fails stops the run with an error naming it; nothing partial is shown as complete. A company with no Show HN
+    that links to its domain, or no cited problem, is listed with the reason and gets no draft. Nothing is sent.
+    """
+    if not github.USERNAME_RE.fullmatch(username):
+        typer.echo(f"Error: {username!r} is not a valid GitHub username", err=True)
+        raise typer.Exit(1)
+    raw_jobs = _read_json_file(jobs_file, "jobs file", "Run `hnradar fetch-hiring` first.")
+    try:
+        jobs = _parse_jobs(raw_jobs)
+    except ValueError as exc:
+        typer.echo(f"Error: {jobs_file} has an unexpected shape: {exc}", err=True)
+        raise typer.Exit(1) from exc
+
+    counter = {"n": 0}
+
+    def progress(step) -> None:
+        counter["n"] += 1
+        line = f"[{counter['n']}/{len(radar_mod.STEP_NAMES)}] {step.name}: {step.status} ({step.seconds}s)"
+        typer.echo(line + (f" - {_terminal_safe(step.message)}" if step.message else ""), err=True)
+
+    result = radar_mod.run_radar(
+        username, jobs, profiles_dir=profiles_dir, pulse_dir=pulse_dir, client=_model_client(model), progress=progress
+    )
+
+    if out is not None:
+        try:
+            _write_text_atomic(out, result.model_dump_json(indent=2) + "\n")
+        except OSError as exc:
+            typer.echo(f"Error: could not write {out}: {_terminal_safe(str(exc))}", err=True)
+            raise typer.Exit(1) from exc
+    if result.status == "failed":
+        typer.echo(f"Error: radar stopped at step '{result.failed_step}': {_terminal_safe(result.error or '')}. No result is shown.", err=True)
+        raise typer.Exit(1)
+    if as_json:
+        typer.echo(json.dumps(result.model_dump(), indent=2, ensure_ascii=True))
+        return
+    _echo_radar(result)
+
+
+def _echo_radar(result) -> None:
+    if result.status == "no_matches":
+        for line in result.warnings:
+            typer.echo(_terminal_safe(line))
+        return
+    typer.echo(f"Radar for {_terminal_safe(result.username)}: top {len(result.companies)} companies ({result.status}).")
+    for c in result.companies:
+        typer.echo("")
+        typer.echo(f"{c.rank}. {_terminal_safe(c.company)} | {_terminal_safe(c.role) or '-'} | fit {c.fit_score}/100")
+        for reason in c.fit_reasons:
+            typer.echo(f"   - {_terminal_safe(reason)}")
+        if c.job_url:
+            typer.echo(f"   {_terminal_safe(c.job_url)}")
+        if c.show_hn is not None:
+            typer.echo(f"   Show HN that links to {c.show_hn.domain}: {_terminal_safe(c.show_hn.title)} ({c.show_hn.url})")
+        if c.problem is not None:
+            ids = ", ".join(str(i) for i in c.problem.comment_ids)
+            typer.echo(f"   Users reported: {_terminal_safe(c.problem.summary)} (comments {ids})")
+        if c.note:
+            typer.echo(f"   Note: {_terminal_safe(c.note)}")
+        if c.draft is not None:
+            typer.echo("")
+            _echo_draft(c.draft)
+    for line in result.warnings:
+        typer.echo("")
+        typer.echo(_terminal_safe(line))
