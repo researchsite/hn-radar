@@ -260,9 +260,12 @@ def run_radar(
         record_total(name)
 
     written = counts["draft"]
-    status = "ok" if written == len(companies) else "partial"
-    warnings = [] if status == "ok" else [f"{len(companies) - written} of {len(companies)} companies have no draft: see each company's note."]
-    if written < limit and len(matches) == depth:  # rule 6: a cut search is not a complete one
+    cut = written < limit and len(matches) == depth  # rule 6: a cut search is not a complete one
+    status = "ok" if written == len(companies) and not cut else "partial"
+    warnings = []
+    if written < len(companies):
+        warnings.append(f"{len(companies) - written} of {len(companies)} companies have no draft: see each company's note.")
+    if cut:
         warnings.append(f"Only the {len(matches)} best matches were checked (depth {depth}); lower-ranked matches were not.")
     return RadarResult(username=profile.username, generated_at=_now(), status=status, steps=steps, profile_summary=summary,
                        companies=companies, warnings=warnings)

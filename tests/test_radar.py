@@ -410,3 +410,9 @@ def test_command_depth_option_and_validation(env):
     assert out.exit_code == 0 and "4 companies checked, 0 drafts" in out.output and "Only the 4 best matches were checked (depth 4)" in out.output
     assert runner.invoke(app, ["radar", "octo", "--depth", "0"]).exit_code != 0
     assert runner.invoke(app, ["radar", "octo", "--depth", "31"]).exit_code != 0
+
+
+def test_a_cut_search_with_all_drafts_written_is_still_partial(tmp_path):
+    result = go(tmp_path, many(12), limit=5, depth=2)
+    assert all(c.draft for c in result.companies) and len(result.companies) == 2
+    assert result.status == "partial" and result.warnings == ["Only the 2 best matches were checked (depth 2); lower-ranked matches were not."]
