@@ -446,14 +446,24 @@
 
   function showProblem(title, text) { var out = $('ck-out'); out.textContent = ''; out.appendChild(stateBox(title, text)); }
 
-  function loadJobs(signal) {
-    return fetch(H.paths.data + 'jobs.json', { signal: signal, cache: 'no-cache' }).then(function (r) {
+  var JOBS_TIMEOUT_MS = 20000;
+  function loadJobs(signal) {  // a stalled request ends in a named failure after JOBS_TIMEOUT_MS, like the GitHub request (S3)
+    var c = new AbortController(), timedOut = false;
+    var onAbort = function () { c.abort(); };
+    signal.addEventListener('abort', onAbort, { once: true });
+    var timer = setTimeout(function () { timedOut = true; c.abort(); }, JOBS_TIMEOUT_MS);
+    var finish = function () { clearTimeout(timer); signal.removeEventListener('abort', onAbort); };
+    return fetch(H.paths.data + 'jobs.json', { signal: c.signal, cache: 'no-cache' }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       var modified = r.headers.get('Last-Modified');
       return r.json().then(function (d) {
         HNFit.checkJobs(d);  // throws on an empty list or a record that is not a job
         return { jobs: d, modified: modified };
       });
+    }).then(function (v) { finish(); return v; }, function (e) {
+      finish();
+      if (timedOut) throw new Error('no answer within ' + (JOBS_TIMEOUT_MS / 1000) + ' seconds');
+      throw e;
     });
   }
 

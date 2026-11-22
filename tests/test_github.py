@@ -124,3 +124,19 @@ def test_failed_cache_write_cleans_up_its_temp_file(mock_github, tmp_path, monke
     with pytest.raises(OSError, match="disk full"):
         github.fetch_repos("octo", cache_dir=tmp_path)
     assert list(tmp_path.iterdir()) == []
+
+
+def test_the_real_cap_refuses_20_full_pages_and_says_2000_or_more(respx_mock, tmp_path):
+    """Exactly 2000 repos is refused too (the browser port, site/careers/hn-github.js, does the same and pins the same words)."""
+    full_page = [make_repo(f"r{i}") for i in range(github.PER_PAGE)]
+    route = respx_mock.get(REPOS_URL).mock(return_value=httpx.Response(200, json=full_page))
+    with pytest.raises(github.GitHubError, match=r"octo has 2000 or more public repos; refusing to build a partial profile"):
+        github.fetch_repos("octo", cache_dir=tmp_path)
+    assert github.MAX_PAGES * github.PER_PAGE == 2000 and route.call_count == 20
+
+
+def test_one_repo_under_the_cap_is_fine(respx_mock, tmp_path):
+    full_page = [make_repo(f"r{i}") for i in range(github.PER_PAGE)]
+    last = [make_repo(f"z{i}") for i in range(github.PER_PAGE - 1)]
+    respx_mock.get(REPOS_URL).mock(side_effect=[httpx.Response(200, json=full_page)] * 19 + [httpx.Response(200, json=last)])
+    assert len(github.fetch_repos("octo", cache_dir=tmp_path)) == 1999
