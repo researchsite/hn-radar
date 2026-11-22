@@ -46,11 +46,13 @@ JOBS = [
 def test_example_scores_ranks_and_reasons_are_what_the_matcher_produces():
     result = RadarResult.model_validate(example())
     summary = result.profile_summary
+    drafted = next(c.draft for c in result.companies if c.draft)
+    assert summary.notable_repos == [drafted.repo]
     profile = Profile(
         username=result.username,
         languages=[Language(name=name, size_kb=100) for name in summary.languages],
         topics=summary.topics,
-        notable_repos=[Repo(name=name, stars=1, language="Python") for name in summary.notable_repos],
+        notable_repos=[Repo(name=drafted.repo, stars=1, language=drafted.repo_language)],  # the only repo the example gives a language for
     )
     expected = top_matches(profile, JOBS)
     shown = [(c.rank, c.job_comment_id, c.fit_score, c.fit_reasons) for c in result.companies]
