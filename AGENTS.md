@@ -20,6 +20,7 @@ uv sync
 ```powershell
 uv run pytest -q
 uv run hnradar fetch-hiring --limit 20 --out data/cache/verify.json
+node --test site/tests/*.test.js   # the site's JavaScript; pytest also runs it when node is installed
 ```
 
 Always pass `--out` for experiments. The default output is `data/jobs.json`, and a limited run

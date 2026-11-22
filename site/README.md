@@ -75,7 +75,7 @@ Every state is designed: missing file ("not produced yet"), invalid file, no Sho
 Real Show HN data: run `uv run python site/tools/build_showhn_data.py` (see the build table below). To test pulse or odd cases with fixtures, copy files from `_private/schema/examples/` into `careers/data/pulse/` (or `showhn/`). `publish-to-site.ps1` publishes only an allowlist: `jobs.json`, `showhn-index.json` and `showhn/<number>.json`. `pulse/<number>.json` is published too, so keep fixtures out of `careers/data/pulse/` and `careers/data/showhn/` (keep them elsewhere, or delete them before publishing).
 
 ### Building every data file, in order
-Run from the repo root, in this order. Steps 2 to 5 read the dev copy `site/careers/data/jobs.json`, so the sync comes right after the fetch.
+Run from the repo root, in this order. Steps 3 to 6 read the dev copy `site/careers/data/jobs.json`, so the sync comes right after the fetch. Each step reads what the earlier ones wrote: `signals.json` (5) is built from the Show HN files (3) and the pulses (4), and the search index (6) from `jobs.json`; the publish script (7) refuses an index that is older than `jobs.json`.
 
 | # | Data | Command | Output | Notes |
 |---|---|---|---|---|
@@ -86,6 +86,20 @@ Run from the repo root, in this order. Steps 2 to 5 read the dev copy `site/care
 | 5 | Show HN and pulse of every job in one file, for the browser match | `uv run python site/tools/build_signals_data.py` | `site/careers/data/signals.json` | after steps 3 and 4 (and every refresh of them); no model, no search: it reads the saved files and fetches the threads of stories that have a pulse (cached). Fails without writing if a saved file is broken or a thread cannot be read. A job with no current Show HN file gets no entry (the page says "not checked") |
 | 6 | Careers search index | `uv run python site/tools/build_careers_index.py` | `site/careers/pagefind/` | after every step 2 (the publish script refuses an older index) |
 | 7 | Publish to the live site | `powershell -File site/_private/publish-to-site.ps1` (dry run), then `-Apply` | the site project | see "Moving the folder" below |
+
+The whole monthly refresh, copy and paste (steps 1 to 6; step 4 needs Ollama running, steps 3 and 4 need the network; each command is safe to run again):
+
+```powershell
+uv run hnradar fetch-hiring
+powershell -File site/_private/sync-dev-assets.ps1
+uv run python site/tools/build_showhn_data.py
+uv run python site/tools/build_pulse_data.py
+uv run python site/tools/build_signals_data.py
+uv run python site/tools/build_careers_index.py
+powershell -File site/_private/publish-to-site.ps1        # dry run; add -Apply to copy
+```
+
+If a step fails, fix it and run that step and the ones after it: a later file built from an older earlier one is the usual mistake (a `signals.json` older than `jobs.json` marks new jobs "not checked"). `build_signals_data.py` and `build_careers_index.py` fail without writing when an input is broken; `build_showhn_data.py` and `build_pulse_data.py` list the jobs or stories that failed and exit 1.
 
 `signals.json` is what the username box on `check.html` reads for Show HN threads and what users said (one file for every job, so the request never names a company; it is rebuilt after the Show HN and pulse files, and `hn-fit.js` refuses a file that does not follow the same rules as `build_signals_data.py`, which the golden cases check). The search index covers hiring posts only. Show HN and pulse files are read per company by `company.html`; the directory uses `showhn-index.json` only to put companies with a Show HN post first. The generated folders are git-ignored; keep test fixtures out of `careers/data/showhn/` and `careers/data/pulse/` because the publish script copies everything there that looks like a real file.
 
@@ -128,7 +142,9 @@ powershell -File site/_private/sync-dev-assets.ps1    # copy includes, fonts, ic
 python -m http.server 8000 --directory site
 ```
 
-Open http://localhost:8000/careers/. Use a server, not a `file://` URL, because the page loads JSON with `fetch`.
+Open http://localhost:8000/careers/. Use a server, not a `file://` URL, because the page loads JSON with `fetch`. The pages show real data only after the build steps in "Building every data file, in order" (the sync alone gives the job list; Show HN, the company teasers, the username box's Show HN threads and the search need steps 3 to 6).
+
+Tests for the site code: `node --test site/tests/*.test.js` (Node 20 or newer, no packages), and `uv run pytest -q`, which runs the same Node tests when `node` is installed and checks that the pages and this README agree (`tests/test_site_pages.py`).
 
 ## Rules for every page
 

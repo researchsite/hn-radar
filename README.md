@@ -109,6 +109,20 @@ uv run hnradar radar octo --limit 5 --depth 15     # look for 5 drafts, going do
 
 The end-to-end run, using the same functions as the single commands. It prints one progress line per step on stderr, then the companies it looked at. It goes down the best matches, a few at a time, until it has `--limit` drafts (default 3) or has looked at `--depth` matches (default 10), so a company far down the list can still get a draft; a run that finds its drafts in the top matches looks no further. For each company: fit reasons, the Show HN story that links to the job link's domain, the problem users reported with its comment ids, and a 5-line draft with its evidence. A company with no such story, no cited problem or no matched repo is listed with the reason and gets no draft; the run is then `partial`, and when the depth ran out first it says that lower-ranked matches were not checked. A user with no public repos or no strong match gets a friendly message (exit 0). A step that fails (GitHub, HN, the model) or a jobs file that is missing or unreadable stops the run with `Error: radar stopped at step '<name>': ...` and exit 1; no companies are shown, and `--out` records `status: failed` with the step. A saved pulse (`data/pulse/<story_id>.json`) is used instead of asking the model. A real run is in [docs/radar-example.md](docs/radar-example.md). Nothing is sent.
 
+## Careers site
+
+`site/careers/` is a static site (job explorer, company directory, "Check yours" with a GitHub username box that matches in the browser). It is built from `data/jobs.json` and published into the RawWeights site by a local script; everything about it, the data build order and the checks are in [site/README.md](site/README.md). The monthly refresh, in order:
+
+```
+uv run hnradar fetch-hiring
+powershell -File site/_private/sync-dev-assets.ps1
+uv run python site/tools/build_showhn_data.py
+uv run python site/tools/build_pulse_data.py      # needs Ollama
+uv run python site/tools/build_signals_data.py
+uv run python site/tools/build_careers_index.py
+powershell -File site/_private/publish-to-site.ps1  # dry run; -Apply to copy
+```
+
 ## Typical session
 
 ```
@@ -121,6 +135,7 @@ uv run hnradar match octocat
 
 ```
 uv run pytest
+node --test site/tests/*.test.js     # the site's JavaScript (pytest also runs it when node is installed)
 ```
 
 ## Contributing
