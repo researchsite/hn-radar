@@ -452,7 +452,7 @@
       if (!r.ok) throw new Error('HTTP ' + r.status);
       var modified = r.headers.get('Last-Modified');
       return r.json().then(function (d) {
-        if (!Array.isArray(d)) throw new Error('not a list');
+        HNFit.checkJobs(d);  // throws on an empty list or a record that is not a job
         return { jobs: d, modified: modified };
       });
     });

@@ -59,3 +59,15 @@ test('the module touches no browser or network API', () => {
     assert.equal(src.includes(word), false, 'hn-fit.js must not use ' + word);
   }
 });
+
+test('checkJobs: a good list passes, an empty or malformed one is an error', () => {
+  const job = { comment_id: 1, company: 'A', stack: ['Python'] };
+  assert.deepEqual(Fit.checkJobs([job]), [job]);
+  assert.throws(() => Fit.checkJobs([]), /empty/);
+  assert.throws(() => Fit.checkJobs(null), TypeError);
+  assert.throws(() => Fit.checkJobs({}), TypeError);
+  for (const bad of [null, 3, [], {}, { ...job, comment_id: 0 }, { ...job, comment_id: -4 }, { ...job, comment_id: 1.5 }, { ...job, comment_id: '1' },
+    { ...job, company: 5 }, { ...job, stack: 'Python' }, { comment_id: 2, company: 'B' }]) {
+    assert.throws(() => Fit.checkJobs([job, bad]), /record 1 of the list of jobs is not a job/);
+  }
+});

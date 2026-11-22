@@ -46,9 +46,9 @@ test('a full page followed by an empty one ends the list', async () => {
   assert.equal((await G.fetchRepos('octo', { fetch: f })).length, 100);
 });
 
-test('the cap fails loudly: 20 full pages is "more than 2000", never a partial list', async () => {
+test('the cap fails loudly: 20 full pages is "2000 or more", never a partial list (exactly 2000 is refused too, like github.py)', async () => {
   const f = fake([res(200, repos(100))]);
-  await assert.rejects(G.fetchRepos('octo', { fetch: f }), code('too_many_repos'));
+  await assert.rejects(G.fetchRepos('octo', { fetch: f }), (e) => e.code === 'too_many_repos' && e.message.includes('2000 or more'));
   assert.equal(f.calls.length, G.MAX_PAGES);
 });
 
@@ -96,6 +96,14 @@ test('a fetch that throws at once, without returning a promise, is still a named
 
 test('a request that never answers times out', async () => {
   const f = (url, init) => new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(new Error('aborted'))));
+  await assert.rejects(G.fetchRepos('octo', { fetch: f, timeoutMs: 30 }), code('timeout'));
+});
+
+test('a body that stalls until the timer cuts it is a timeout, not bad JSON', async () => {
+  const f = async (url, init) => ({
+    status: 200, ok: true, headers: { get: () => null },
+    json: () => new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(new Error('aborted'))))
+  });
   await assert.rejects(G.fetchRepos('octo', { fetch: f, timeoutMs: 30 }), code('timeout'));
 });
 

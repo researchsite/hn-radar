@@ -98,5 +98,5 @@ def fetch_repos(username: str, *, cache_dir: Path | None = None, use_cache: bool
         if len(batch) < PER_PAGE:
             return repos
     raise GitHubError(
-        f"{username} has more than {MAX_PAGES * PER_PAGE} public repos; refusing to build a partial profile"
+        f"{username} has {MAX_PAGES * PER_PAGE} or more public repos; refusing to build a partial profile"
     )

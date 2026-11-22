@@ -47,6 +47,8 @@
     }
     if (typeof doFetch !== 'function') return Promise.reject(new TypeError('fetch is required'));
 
+    function timeoutError() { return GitHubError('timeout', 'GitHub did not answer within ' + Math.round(timeoutMs / 1000) + ' seconds. Try again in a moment.'); }
+
     function once(page) {
       if (outer && outer.aborted) return Promise.reject(GitHubError('aborted', 'Stopped.'));
       var ctl = new AbortController(), timedOut = false, timer = null;
@@ -62,7 +64,7 @@
         .catch(function () {
           done();
           if (outer && outer.aborted) throw GitHubError('aborted', 'Stopped.');
-          if (timedOut) throw GitHubError('timeout', 'GitHub did not answer within ' + Math.round(timeoutMs / 1000) + ' seconds. Try again in a moment.');
+          if (timedOut) throw timeoutError();
           throw GitHubError('network', 'The browser could not reach GitHub. Check your connection, then try again.');
         })
         .then(function (res) {
@@ -82,6 +84,7 @@
           }, function () {
             done();
             if (outer && outer.aborted) throw GitHubError('aborted', 'Stopped.');
+            if (timedOut) throw timeoutError();  // the body stalled until the timer cut it: that is a timeout, not bad JSON
             throw GitHubError('bad_response', 'GitHub answered with something that is not JSON, so no profile was made.');
           });
         });
@@ -93,7 +96,7 @@
         for (var i = 0; i < batch.length; i++) repos.push(batch[i]);
         if (batch.length < perPage) return repos;
         if (page >= maxPages) {
-          throw GitHubError('too_many_repos', username + ' has more than ' + (maxPages * perPage) + ' public repositories; the page will not build a partial profile.');
+          throw GitHubError('too_many_repos', username + ' has ' + (maxPages * perPage) + ' or more public repositories; the page will not build a partial profile.');
         }
         return next(page + 1);
       });
