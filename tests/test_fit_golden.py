@@ -29,6 +29,8 @@ def test_golden_cases_cover_the_edges():
 
 
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed; run the Node suite where it is")
-def test_the_javascript_port_gives_the_same_answers():
-    run = subprocess.run(["node", "--test", str(ROOT / "site" / "tests" / "hn-fit.test.js")], capture_output=True, text=True, timeout=120)
+def test_the_javascript_tests_pass():
+    files = sorted(str(p) for p in (ROOT / "site" / "tests").glob("*.test.js"))
+    assert len(files) >= 2
+    run = subprocess.run(["node", "--test", *files], capture_output=True, text=True, timeout=180)
     assert run.returncode == 0, run.stdout[-3000:] + run.stderr[-1000:]
