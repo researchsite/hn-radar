@@ -319,7 +319,7 @@ def test_command_rejects_a_bad_limit(env, value):
 def test_command_limit_option_is_passed_on(env):
     env.jobs([job(i, f"Co{i}") for i in range(1, 8)])
     result = runner.invoke(app, ["radar", "octo", "--limit", "4"])
-    assert result.exit_code == 0 and "top 4 companies" in result.output
+    assert result.exit_code == 0 and "4 companies checked, 4 drafts" in result.output
 
 
 def test_text_output_cleans_the_domain_and_the_model_name(tmp_path, monkeypatch):
@@ -347,3 +347,56 @@ def test_command_reports_an_unwritable_out_file(env):
     (env.path / "blocked").mkdir()
     result = runner.invoke(app, ["radar", "octo", "--out", str(env.path / "blocked")])
     assert result.exit_code == 1 and "could not write" in result.output
+
+
+# ---- depth: look past the top matches for companies that can get a draft (issue 55) ----
+
+def many(n):
+    return [job(i, f"Co{i}") for i in range(1, n + 1)]  # newer id ranks first: Co12 is rank 1
+
+
+def test_a_run_that_finds_its_drafts_in_the_top_matches_looks_no_further(tmp_path):
+    fake = Hn()
+    result = go(tmp_path, many(12), hn_fake=fake)
+    assert [c.company for c in result.companies] == ["Co12", "Co11", "Co10"] and result.status == "ok"
+    assert len(fake.searches) == 3  # no extra lookups
+
+
+def test_drafts_are_looked_for_below_matches_without_a_story(tmp_path):
+    fake = Hn(no_story={"Co12", "Co11", "Co10", "Co9", "Co8"})
+    result = go(tmp_path, many(12), hn_fake=fake)
+    assert [c.rank for c in result.companies] == [1, 2, 3, 4, 5, 6, 7, 8]  # every company looked at is listed
+    assert [c.company for c in result.companies if c.draft] == ["Co7", "Co6", "Co5"]
+    assert result.status == "partial" and "5 of 8 companies have no draft" in result.warnings[0]
+    assert all(c.note for c in result.companies if not c.draft)
+    assert [s.name for s in result.steps] == list(STEP_NAMES) and result.steps[2].message.startswith("3 of 8 companies")
+
+
+def test_a_search_that_hits_the_depth_says_so(tmp_path):
+    result = go(tmp_path, many(12), hn_fake=Hn(no_story={f"Co{i}" for i in range(1, 13)}), depth=5)
+    assert len(result.companies) == 5 and result.status == "partial"
+    assert any("Only the 5 best matches were checked (depth 5)" in w for w in result.warnings)
+
+
+def test_fewer_matches_than_the_depth_is_not_reported_as_a_cut_search(tmp_path):
+    result = go(tmp_path, many(4), hn_fake=Hn(no_story={"Co4"}), depth=10)
+    assert not any("Only the" in w for w in result.warnings) and len(result.companies) == 4
+
+
+def test_a_failure_in_a_later_batch_keeps_the_finished_steps_and_shows_no_companies(tmp_path):
+    result = go(tmp_path, many(12), hn_fake=Hn(no_story={"Co12", "Co11", "Co10"}, fail_search_for="Co8"))
+    assert result.status == "failed" and result.failed_step == "showhn" and result.companies == []
+    assert [s.name for s in result.steps] == ["fingerprint", "match", "showhn"] and result.steps[-1].status == "failed"
+
+
+def test_depth_is_never_below_limit(tmp_path):
+    assert len(go(tmp_path, many(12), limit=5, depth=1).companies) == 5
+
+
+def test_command_depth_option_and_validation(env):
+    env.jobs(many(12))
+    env.hn.no_story = {f"Co{i}" for i in range(1, 13)}
+    out = runner.invoke(app, ["radar", "octo", "--depth", "4"])
+    assert out.exit_code == 0 and "4 companies checked, 0 drafts" in out.output and "Only the 4 best matches were checked (depth 4)" in out.output
+    assert runner.invoke(app, ["radar", "octo", "--depth", "0"]).exit_code != 0
+    assert runner.invoke(app, ["radar", "octo", "--depth", "31"]).exit_code != 0
