@@ -12,13 +12,13 @@ _HREF = re.compile(r'href\s*=\s*"([^"]+)"', re.I)
 
 _ROLE = re.compile(
     r"\b(?:engineer\w*|developer\w*|designer|scientist|analyst|manager|architect|"
-    r"devops|sre|backend|back-end|frontend|front-end|full[- ]?stack|lead|intern|"
+    r"devops|sre|backend|back-end|frontend|front-end|full[- ]?stack|lead|interns?|tester|builder|"
     r"cto|founder|head of|recruiter|product|researcher|administrator|consultant|"
     r"sales|executive|staff|officer|chief|director|vp|marketing|writer|technician|"
     r"(?:multiple|several)(?:\s+senior)?\s+(?:roles|positions))\b",
     re.I,
 )
-_LOCATION_KEYWORD = re.compile(r"\b(?:remote|on-?site|hybrid)\b", re.I)
+_LOCATION_KEYWORD = re.compile(r"\b(?:remote(?:ly)?|on-?site|hybrid)\b", re.I)
 _ONSITE = re.compile(r"\b(?:on-?site|in[- ]office|in[- ]person)\b", re.I)
 _HYBRID = re.compile(r"\bhybrid\b", re.I)
 _CITY_COMMA = re.compile(r"^[A-Z][A-Za-z.' -]+,\s*[A-Za-z]")
@@ -102,7 +102,7 @@ def extract_url(html: str) -> str | None:
 def _extract_remote(text: str, first_line: str) -> bool | None:
     if _NOT_REMOTE.search(text):
         return False
-    if re.search(r"\bremote\b", text, re.I):
+    if re.search(r"\bremote(?:ly)?\b", text, re.I):
         return True
     # Headers like "Acme | ONSITE | Berlin" say it outright; hybrid stays unknown.
     if _ONSITE.search(first_line) and not _HYBRID.search(first_line):
@@ -144,7 +144,9 @@ def _guess_company(first_line: str) -> str:
 # 1) intro style: "I'm Name, a ... engineer" in the first two lines and no hiring cue anywhere in the post
 #    (a founder or recruiter also writes "I'm ...", e.g. "I'm an independent recruiter", "I'm looking to hire");
 # 2) resume style (the old "Who wants to be hired?" format): a "Willing to relocate:" line plus two more
-#    resume labels in the first lines.
+#    resume labels in the first lines;
+# 3) a header that says the poster is seeking work: "SEEKING WORK ...", "SEEKING FREELANCE - Egypt ...". Not
+#    "SEEKING FREELANCER | Devops Engineer" (a company looking for one) or "Seeking freelance developers".
 _REQUEST = r"(?!(?:looking|seeking|searching|hiring|need|want)\b)"  # "I'm looking for a developer" is a job
 _INTRO = re.compile(
     r"^(?:(?:hi|hello)[,!.]?\s+)?(?:i['’]m|i am|my name is)\b(?:" + _REQUEST + r"[^.\n]){0,80}?\b(?:an?|the)\s+"
@@ -156,6 +158,7 @@ _HIRE_CUE = re.compile(
     r"\bour (?:team|company|product|startup)\b",
     re.I,
 )
+_SEEKING_WORK = re.compile(r"^\W*seeking\s+(?:work|freelance|employment)(?![\w-])(?!\s+\w+(?:ers|ors)\b)", re.I)
 _RELOCATE_LABEL = re.compile(r"^willing to relocate\s*:", re.I)
 _RESUME_LABELS = (
     re.compile(r"^location\s*:", re.I),
@@ -171,6 +174,8 @@ def is_candidate_profile(text: str) -> bool:
     if any(_RELOCATE_LABEL.match(line) for line in head):
         if sum(any(label.match(line) for line in head) for label in _RESUME_LABELS) >= 2:
             return True
+    if _SEEKING_WORK.match(lines[0]) and not _HIRE_CUE.search(text):
+        return True
     return any(_INTRO.match(line) for line in lines[:2]) and not _HIRE_CUE.search(text)
 
 
