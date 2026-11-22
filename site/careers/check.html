@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Check yours | HN Radar | RawWeights</title>
-  <meta name="description" content="Match your public GitHub work to Who is hiring posts. Runs on your machine; nothing is uploaded. Coming soon.">
+  <meta name="description" content="Load the result file you made on your own computer and see your best-fit companies, what their users said and a short draft note. Nothing is uploaded.">
   <meta name="author" content="RawWeights">
   <meta name="robots" content="noindex">
   <link rel="canonical" href="https://rawweights.com/careers/check.html">
@@ -13,7 +13,7 @@
 
   <link rel="stylesheet" href="../includes/brand.css">
   <link rel="stylesheet" href="./hn.css">
-  <script type="text/javascript" async src="../includes/analytics.js"></script>
+  <!-- No ../includes/analytics.js here on purpose: it loads Microsoft Clarity, which records what is on the screen. This page shows a person's own result and promises that nothing leaves the browser. -->
 </head>
 <body>
 
@@ -23,17 +23,412 @@
 <div id="content" class="rw-hn-wrap">
   <div id="hn-pages"></div>
   <h1>Check yours</h1>
-  <div class="rw-hn-state" role="status">
-    <strong>Coming soon</strong>
-    <span>This page will let you load a result file you made on your own computer and see your best-fit companies, what their users said, and a short draft note. Your data will stay in your browser and is never uploaded. It is not built yet.</span>
-    <div><a class="rw-hn-btn" href="./index.html">Browse the jobs</a></div>
-  </div>
+  <p class="rw-hn-lead">See which companies in this month's "Who is hiring?" thread fit your public GitHub work, what their users said, and a short draft note. The result is made on your own computer; this page only shows it.</p>
+
+  <section class="rw-hn-panel" aria-labelledby="ck-how">
+    <h2 id="ck-how">1. Make your result file</h2>
+    <p class="rw-hn-small">Install HN Radar, then run this with your own GitHub username. It reads only your public repositories and writes one file. Nothing is sent anywhere, and the draft is never sent.</p>
+    <pre class="rw-hn-code" tabindex="0">uv run hnradar radar YOUR-GITHUB-USERNAME --out radar.json</pre>
+    <p class="rw-hn-note"><strong>Privacy:</strong> the file you load below is read inside this browser tab. It is not uploaded, not saved in this browser and not sent in any request. Close the tab or use "Clear" and it is gone. Keep the file private: it is about you.</p>
+  </section>
+
+  <section class="rw-hn-panel" aria-labelledby="ck-load">
+    <h2 id="ck-load">2. Load it</h2>
+    <div id="ck-drop" class="rw-hn-drop">
+      <p><strong>Drop radar.json here</strong> or</p>
+      <p><input type="file" id="ck-file" accept=".json,application/json" class="rw-hn-visually-hidden">
+        <label class="rw-hn-btn" for="ck-file">Choose the file</label></p>
+    </div>
+    <div class="rw-hn-field" style="margin-top:12px">
+      <label for="ck-paste">Or paste the contents of the file</label>
+      <textarea id="ck-paste" rows="5" spellcheck="false" autocomplete="off" placeholder='{"username": "...", "status": "ok", ...}'></textarea>
+    </div>
+    <p class="rw-hn-actions">
+      <button type="button" class="rw-hn-btn rw-hn-btn--solid" id="ck-show">Show my result</button>
+      <button type="button" class="rw-hn-btn" id="ck-example">Try an example</button>
+      <button type="button" class="rw-hn-btn" id="ck-clear">Clear</button>
+    </p>
+  </section>
+
+  <div id="ck-out" aria-live="polite"></div>
 </div>
+
+<script type="application/json" id="ck-example-data">
+{
+ "username": "example-developer",
+ "generated_at": "2026-11-21T12:00:00+00:00",
+ "status": "partial",
+ "failed_step": null,
+ "error": null,
+ "steps": [
+  {
+   "name": "fingerprint",
+   "status": "ok",
+   "seconds": 1.2,
+   "message": "12 public repos"
+  },
+  {
+   "name": "match",
+   "status": "ok",
+   "seconds": 0.1,
+   "message": "3 of 231 jobs"
+  },
+  {
+   "name": "showhn",
+   "status": "ok",
+   "seconds": 2.4,
+   "message": "1 of 3 companies have a Show HN that links to their domain"
+  },
+  {
+   "name": "pulse",
+   "status": "ok",
+   "seconds": 0.1,
+   "message": "1 of 1 threads have a cited problem"
+  },
+  {
+   "name": "draft",
+   "status": "ok",
+   "seconds": 9.5,
+   "message": "1 of 1 drafts written"
+  }
+ ],
+ "profile_summary": {
+  "languages": [
+   "Python",
+   "JavaScript"
+  ],
+  "topics": [
+   "django",
+   "queue",
+   "cli"
+  ],
+  "notable_repos": [
+   "django-status-page"
+  ]
+ },
+ "companies": [
+  {
+   "rank": 1,
+   "company": "RAIDS AI",
+   "role": "Senior Technical Project Manager (Full Stack)",
+   "job_comment_id": 50451710,
+   "job_url": "https://www.linkedin.com/jobs/view/4483409995/",
+   "fit_score": 35,
+   "fit_reasons": [
+    "Your Python work matches this job's stack (the post says remote)",
+    "Your repo django-status-page is written in Python",
+    "Your repos use the topic django"
+   ],
+   "show_hn": null,
+   "pulse_status": "no_show_hn",
+   "problem": null,
+   "draft_status": "skipped",
+   "draft": null,
+   "note": "platform domain (linkedin.com); a story that links to it may belong to someone else"
+  },
+  {
+   "rank": 2,
+   "company": "Search Atlas",
+   "role": "Product Engineer (PM)",
+   "job_comment_id": 50365279,
+   "job_url": "https://careers.searchatlas.com/jobs/599248-product-engineer-pm",
+   "fit_score": 35,
+   "fit_reasons": [
+    "Your Python work matches this job's stack (the post says remote)",
+    "Your repo django-status-page is written in Python",
+    "Your repos use the topic django"
+   ],
+   "show_hn": null,
+   "pulse_status": "no_show_hn",
+   "problem": null,
+   "draft_status": "skipped",
+   "draft": null,
+   "note": "no Show HN links to careers.searchatlas.com"
+  },
+  {
+   "rank": 3,
+   "company": "SadServers",
+   "role": "Software Engineer",
+   "job_comment_id": 50341345,
+   "job_url": "https://sadservers.com",
+   "fit_score": 35,
+   "fit_reasons": [
+    "Your Python work matches this job's stack (the post says remote)",
+    "Your repo django-status-page is written in Python",
+    "Your repos use the topic django"
+   ],
+   "show_hn": {
+    "story_id": 33344142,
+    "title": "Show HN: SadServers - Test your Linux troubleshooting skills",
+    "domain": "sadservers.com",
+    "url": "https://news.ycombinator.com/item?id=33344142"
+   },
+   "pulse_status": "ok",
+   "problem": {
+    "summary": "Server is unresponsive and times out",
+    "comment_ids": [
+     33344666,
+     33345559
+    ]
+   },
+   "draft_status": "written",
+   "draft": {
+    "username": "example-developer",
+    "company": "SadServers",
+    "domain": "sadservers.com",
+    "story_id": 33344142,
+    "repo": "django-status-page",
+    "repo_language": "Python",
+    "repo_description": "A small status page for Django projects (made-up example repo)",
+    "model": "example:written-by-hand",
+    "lines": [
+     {
+      "text": "Hi SadServers team, I am example-developer, a Python and Django developer.",
+      "comment_ids": []
+     },
+     {
+      "text": "A Show HN that links to sadservers.com got two reports that the page stayed on \"Waiting for server...\" or timed out.",
+      "comment_ids": [
+       33344666,
+       33345559
+      ]
+     },
+     {
+      "text": "My repo django-status-page shows visitors a clear state while a slow backend wakes up.",
+      "comment_ids": []
+     },
+     {
+      "text": "I would start by reading how a new session is started and where it can wait.",
+      "comment_ids": []
+     },
+     {
+      "text": "Would a ten minute call be useful?",
+      "comment_ids": []
+     }
+    ],
+    "evidence": [
+     {
+      "comment_id": 33344666,
+      "text": "The idea is really cool, but all I see is \"Waiting for server...\" and nothing happens.",
+      "url": "https://news.ycombinator.com/item?id=33344666"
+     },
+     {
+      "comment_id": 33345559,
+      "text": "Well this sucks I wanted to try it lol. It's timing out for me or throws an error.",
+      "url": "https://news.ycombinator.com/item?id=33345559"
+     }
+    ]
+   },
+   "note": null
+  }
+ ],
+ "warnings": [
+  "2 of 3 companies have no draft: see each company's note."
+ ]
+}
+</script>
 
 <div id="rw-footer" data-linkedin="" data-related='[]'></div>
 <script src="../includes/rw-footer.js?v=20261107"></script>
 
 <script src="./hn.js"></script>
-<script>document.getElementById('hn-pages').appendChild(window.HN.pages('check.html'));</script>
+<script>
+(function () {
+  'use strict';
+  // The file is read with FileReader and rendered. There is no fetch, no storage and no cookie: the result never leaves memory.
+  var H = window.HN, el = H.el, clean = H.clean, cleanBlock = H.cleanBlock;
+  var $ = function (id) { return document.getElementById(id); };
+  document.getElementById('hn-pages').appendChild(H.pages('check.html'));
+
+  var MAX_BYTES = 2 * 1024 * 1024, MAX_COMPANIES = 10;
+  var STATUSES = ['ok', 'partial', 'no_matches', 'failed'];
+  var PULSE_NOTES = { no_show_hn: 'No Show HN story that links to this job link\'s domain was found.', not_enough_signal: 'The Show HN thread has too few comments to say what people think.', no_cited_problem: 'No problem is backed by comments in the thread.' };
+
+  function int(n) { return typeof n === 'number' && isFinite(n) && Math.floor(n) === n; }
+  function str(v) { return typeof v === 'string' ? clean(v) : ''; }
+  function noteBox(text, warn) { return el('p', { className: 'rw-hn-note' + (warn ? ' rw-hn-note--warn' : '') }, text); }
+  function stateBox(title, text) { var d = el('div', { className: 'rw-hn-state', role: 'status' }); d.appendChild(el('strong', {}, title)); d.appendChild(el('span', {}, text)); return d; }
+  function section(title) { var s = el('section', { className: 'rw-hn-section rw-hn-panel' }); s.appendChild(el('h2', {}, title)); return s; }
+  function ids(list) { return (Array.isArray(list) ? list : []).filter(function (i) { return int(i) && H.hnItemUrl(i); }); }
+
+  // ---- one company card ----
+  function renderDraft(d) {
+    // a draft is five lines; the line that states what users reported must cite a comment (AGENTS.md rule 1)
+    if (!d || typeof d !== 'object' || !Array.isArray(d.lines) || d.lines.length !== 5) return { problem: 'its lines are not the five expected' };
+    var lines = d.lines.map(function (l) { return l && typeof l === 'object' && typeof l.text === 'string' ? { text: cleanBlock(l.text), ids: ids(l.comment_ids) } : null; });
+    if (lines.some(function (l) { return !l || !l.text; })) return { problem: 'a line has no text' };
+    if (!lines[1].ids.length) return { problem: 'the line about what users reported cites no comment' };
+    var box = el('div', { className: 'rw-hn-draft' });
+    box.appendChild(el('h4', {}, 'Draft note' + (typeof d.model === 'string' && clean(d.model) ? ' (written by ' + clean(d.model) + ')' : '')));
+    var body = el('div', { className: 'rw-hn-draft-body' });
+    lines.forEach(function (l) {
+      var p = el('p', {}, l.text);
+      if (l.ids.length) p.appendChild(H.citations(l.ids));
+      body.appendChild(p);
+    });
+    box.appendChild(body);
+    var plain = lines.map(function (l) { return l.ids.length ? l.text + ' (' + l.ids.map(function (i) { return H.hnItemUrl(i); }).join(', ') + ')' : l.text; }).join('\n');
+    var status = el('span', { className: 'rw-hn-small rw-hn-muted', role: 'status' });
+    var copy = el('button', { type: 'button', className: 'rw-hn-btn' }, 'Copy draft');
+    copy.addEventListener('click', function () {
+      var done = function () { status.textContent = 'Copied. Read the sources below before you send anything.'; };
+      var fail = function () { status.textContent = 'Could not copy. Select the text above and copy it by hand.'; };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(plain).then(done, fail); else fail();
+    });
+    box.appendChild(el('p', { className: 'rw-hn-actions' }, [copy, status]));
+    var ev = (Array.isArray(d.evidence) ? d.evidence : []).filter(function (e) { return e && typeof e === 'object' && int(e.comment_id) && H.hnItemUrl(e.comment_id) && typeof e.text === 'string'; });
+    var det = el('details', { className: 'rw-hn-why' });
+    det.appendChild(el('summary', {}, 'Sources: what the draft rests on'));
+    var repo = str(d.repo);
+    det.appendChild(el('p', { className: 'rw-hn-small' }, 'Your repo named in the draft: ' + (repo || 'not stated') + (str(d.repo_language) ? ' (' + str(d.repo_language) + ')' : '') + (str(d.repo_description) ? ' - ' + str(d.repo_description) : ' - no description') + '. A small model can say more about a repo than its description states: check that.'));
+    if (ev.length) {
+      var ul = el('ul', { className: 'rw-hn-points' });
+      ev.forEach(function (e) {
+        var li = el('li', { className: 'rw-hn-point' });
+        li.appendChild(el('p', {}, clean(e.text)));
+        li.appendChild(H.citations([e.comment_id]));
+        ul.appendChild(li);
+      });
+      det.appendChild(ul);
+    } else det.appendChild(el('p', { className: 'rw-hn-small rw-hn-muted' }, 'The file holds no comment text for this draft.'));
+    box.appendChild(det);
+    return { node: box };
+  }
+
+  function renderCompany(c) {
+    var li = el('li', { className: 'rw-hn-item' });
+    var name = str(c.company) || 'Company not stated';
+    li.appendChild(el('h3', {}, c.rank + '. ' + name));
+    li.appendChild(el('p', { className: 'rw-hn-meta' }, [str(c.role) || 'Role not stated', 'fit ' + c.fit_score + ' out of 100'].join(' · ')));
+    var why = el('details', { className: 'rw-hn-why' });
+    why.appendChild(el('summary', {}, 'Why this match?'));
+    var wl = el('ul', { className: 'rw-hn-points' });
+    c.fit_reasons.forEach(function (r) { if (typeof r === 'string' && clean(r)) wl.appendChild(el('li', {}, clean(r))); });
+    why.appendChild(wl);
+    why.appendChild(el('p', { className: 'rw-hn-small rw-hn-muted' }, 'The fit is computed from the languages and topics of your public repositories against the technologies named in the post. It says nothing about seniority, pay or whether the job is still open.'));
+    li.appendChild(why);
+    var acts = [el('a', { className: 'rw-hn-link', href: './company.html?job=' + c.job_comment_id }, 'Company page'),
+      H.extLink(H.hnItemUrl(c.job_comment_id), 'Hiring post on HN', 'Hiring post from ' + name)];
+    var ju = H.safeUrl(c.job_url); if (ju) acts.push(H.extLink(ju.href, 'Job link (' + ju.host + ')', 'Job link from ' + name));
+    li.appendChild(el('p', { className: 'rw-hn-actions' }, acts));
+
+    var sh = c.show_hn;
+    if (sh && typeof sh === 'object' && int(sh.story_id) && H.hnItemUrl(sh.story_id)) {
+      var p = el('p', {}, [el('span', { className: 'rw-hn-badge rw-hn-badge--note' }, 'Show HN that links to ' + (str(sh.domain) || 'the job link\'s domain')), ' ',
+        H.extLink(H.hnItemUrl(sh.story_id), str(sh.title) || 'Show HN story ' + sh.story_id, 'Hacker News story ' + sh.story_id)]);
+      li.appendChild(p);
+      li.appendChild(el('p', { className: 'rw-hn-small rw-hn-muted' }, 'A link to the domain does not show that the company posted the story.'));
+    }
+    var pr = c.problem;
+    var pids = pr && typeof pr === 'object' ? ids(pr.comment_ids) : [];
+    var hidden = 0;
+    if (pr && typeof pr === 'object' && typeof pr.summary === 'string' && clean(pr.summary)) {
+      if (pids.length) {
+        var box = el('div', { className: 'rw-hn-point' });
+        box.appendChild(el('p', {}, [el('strong', {}, 'Users reported: '), clean(pr.summary)]));
+        box.appendChild(H.citations(pids));
+        li.appendChild(box);
+      } else hidden++;   // a claim with no source comment is never shown
+    }
+    if (hidden) li.appendChild(noteBox('A point about what users said is not shown because it has no source comment on Hacker News.', true));
+    if (!pids.length && PULSE_NOTES[c.pulse_status]) li.appendChild(el('p', { className: 'rw-hn-small rw-hn-muted' }, PULSE_NOTES[c.pulse_status]));
+    if (typeof c.note === 'string' && clean(c.note)) li.appendChild(el('p', { className: 'rw-hn-small rw-hn-muted' }, 'Note: ' + clean(c.note)));
+    if (c.draft) {
+      var dr = renderDraft(c.draft);
+      if (dr.node) li.appendChild(dr.node);
+      else li.appendChild(noteBox('A draft in the file is not shown: ' + dr.problem + '.', true));
+    } else li.appendChild(el('p', { className: 'rw-hn-small' }, [el('span', { className: 'rw-hn-badge rw-hn-badge--warn' }, 'No draft'), ' ', pids.length ? 'No draft was written for this company: see the note above.' : 'Nothing is written when there is no Show HN story with a cited problem.']));
+    return li;
+  }
+
+  function validCompany(c) {
+    return c && typeof c === 'object' && int(c.rank) && c.rank > 0 && typeof c.company === 'string' && int(c.job_comment_id) && H.hnItemUrl(c.job_comment_id)
+      && int(c.fit_score) && c.fit_score >= 0 && c.fit_score <= 100 && Array.isArray(c.fit_reasons);
+  }
+
+  // ---- the whole result ----
+  function render(raw) {
+    var out = $('ck-out'); out.textContent = '';
+    if (!raw || !raw.trim()) { out.appendChild(stateBox('Nothing to show', 'Choose your radar.json file or paste its contents first.')); return; }
+    if (raw.length > MAX_BYTES) { out.appendChild(stateBox('The file is too large', 'A result file is a few kilobytes. This one is over 2 MB, so it is not a radar result.')); return; }
+    var d;
+    try { d = JSON.parse(raw); } catch (e) { out.appendChild(stateBox('This is not valid JSON', 'The text could not be read as a result file. Load radar.json exactly as hnradar wrote it.')); return; }
+    if (!d || typeof d !== 'object' || Array.isArray(d) || STATUSES.indexOf(d.status) === -1 || typeof d.username !== 'string' || !Array.isArray(d.companies)) {
+      out.appendChild(stateBox('This is not a radar result file', 'It was expected to hold a username, a status (ok, partial, no_matches or failed) and a list of companies.')); return;
+    }
+    var user = str(d.username) || 'unknown';
+    if (d.status === 'failed') {
+      out.appendChild(stateBox('The run stopped at step "' + (str(d.failed_step) || 'unknown') + '"', (str(d.error) || 'No reason was recorded.') + ' No result is shown: a half-finished run is never presented as a complete one. Fix the cause and run hnradar radar again.'));
+      return;
+    }
+    var head = section('Radar for ' + user);
+    var when = new Date(d.generated_at);
+    head.appendChild(el('p', { className: 'rw-hn-small rw-hn-muted' }, 'Made ' + (isNaN(when.getTime()) ? 'at an unknown time' : when.toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' })) + ' on your computer. Status: ' + d.status + '.'));
+    if (Array.isArray(d.steps)) {
+      var chips = el('ul', { className: 'rw-hn-chips', 'aria-label': 'Steps of the run' });
+      d.steps.forEach(function (s) {
+        if (s && typeof s === 'object' && typeof s.name === 'string' && typeof s.status === 'string')
+          chips.appendChild(el('li', {}, el('span', { className: 'rw-hn-tag' + (s.status === 'ok' ? '' : ' rw-hn-tag--soft') }, clean(s.name) + ': ' + clean(s.status))));
+      });
+      head.appendChild(chips);
+    }
+    var ps = d.profile_summary;
+    if (ps && typeof ps === 'object') {
+      var facts = el('dl', { className: 'rw-hn-facts' });
+      [['Languages', ps.languages], ['Topics', ps.topics], ['Notable repos', ps.notable_repos]].forEach(function (row) {
+        var list = (Array.isArray(row[1]) ? row[1] : []).filter(function (x) { return typeof x === 'string' && clean(x); }).map(clean);
+        facts.appendChild(el('dt', {}, row[0])); facts.appendChild(el('dd', {}, list.length ? list.join(', ') : 'none'));
+      });
+      head.appendChild(el('h3', {}, 'Your profile, as read from GitHub'));
+      head.appendChild(facts);
+    }
+    out.appendChild(head);
+
+    (Array.isArray(d.warnings) ? d.warnings : []).forEach(function (w) { if (typeof w === 'string' && clean(w)) out.appendChild(noteBox(clean(w), true)); });
+    if (d.status === 'no_matches') { out.appendChild(stateBox('No strong match this month', 'Nothing in the thread shares enough with your public repositories. That is a normal result, not an error: nothing is made up to fill the list.')); return; }
+
+    var valid = d.companies.filter(validCompany).sort(function (a, b) { return a.rank - b.rank; }), skipped = d.companies.length - valid.length;
+    if (valid.length > MAX_COMPANIES) { skipped += valid.length - MAX_COMPANIES; valid = valid.slice(0, MAX_COMPANIES); }
+    if (!valid.length) { out.appendChild(stateBox('No company in the file could be shown', 'The companies in the file are missing fields, so none is displayed.')); return; }
+    var sec = section('Your best-fit companies');
+    if (d.status === 'partial') sec.appendChild(noteBox('Partial result: some companies have no Show HN story or no cited problem, so they have no draft. Each says why. This is a normal outcome, not a failure.', false));
+    var ul = el('ul', { className: 'rw-hn-list' });
+    valid.forEach(function (c) { ul.appendChild(renderCompany(c)); });
+    sec.appendChild(ul);
+    if (skipped) sec.appendChild(noteBox(skipped + (skipped === 1 ? ' company' : ' companies') + ' in the file ' + (skipped === 1 ? 'was' : 'were') + ' not shown because ' + (skipped === 1 ? 'it was' : 'they were') + ' not valid.', true));
+    sec.appendChild(el('p', { className: 'rw-hn-small rw-hn-muted' }, 'Summaries and drafts are written by a small local model and can be wrong. The Hacker News comments are the source: open them before you rely on or send anything.'));
+    out.appendChild(sec);
+  }
+
+  // ---- input: a file, a drop or pasted text ----
+  var gen = 0, reader = null;  // a read that finishes after Clear, or after a newer load, must not render
+  function stopRead() { gen++; if (reader) { try { reader.abort(); } catch (e) {} reader = null; } }
+  function readFile(file) {
+    if (!file) return;
+    stopRead();
+    var mine = gen;
+    if (file.size > MAX_BYTES) { var big = $('ck-out'); big.textContent = ''; big.appendChild(stateBox('The file is too large', 'A result file is a few kilobytes. This one is over 2 MB, so it is not a radar result.')); return; }
+    var r = reader = new FileReader();
+    r.onload = function () { if (mine !== gen) return; reader = null; $('ck-paste').value = ''; render(String(r.result)); $('ck-out').scrollIntoView({ block: 'start' }); };
+    r.onerror = function () { if (mine !== gen) return; var out = $('ck-out'); out.textContent = ''; out.appendChild(stateBox('The file could not be read', 'The browser could not open it. Try again, or paste its contents.')); };
+    r.readAsText(file);
+  }
+  $('ck-file').addEventListener('change', function (e) { readFile(e.target.files[0]); e.target.value = ''; });
+  $('ck-show').addEventListener('click', function () { stopRead(); render($('ck-paste').value); });
+  $('ck-example').addEventListener('click', function () {
+    stopRead();
+    $('ck-paste').value = '';
+    render($('ck-example-data').textContent);
+    var out = $('ck-out');
+    out.insertBefore(noteBox('This is an example, not your result. The developer "example-developer" and the repos are made up. The jobs, the Show HN thread and the two comments are real and public. The note was written by hand to show the format and is never sent anywhere.', true), out.firstChild);
+    out.scrollIntoView({ block: 'start' });
+  });
+  $('ck-clear').addEventListener('click', function () { stopRead(); $('ck-paste').value = ''; $('ck-out').textContent = ''; $('ck-file').value = ''; });
+  var drop = $('ck-drop');
+  ['dragenter', 'dragover'].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.add('rw-hn-drop--over'); }); });
+  ['dragleave', 'drop'].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.remove('rw-hn-drop--over'); }); });
+  drop.addEventListener('drop', function (e) { readFile(e.dataTransfer && e.dataTransfer.files[0]); });
+})();
+</script>
 </body>
 </html>

@@ -5,6 +5,7 @@ import re
 from collections.abc import Iterable
 
 from hnradar.models import Job, Match, MatchJob, MatchReason, Profile
+from hnradar.parse import is_candidate_profile
 
 TOP_MATCHES = 3
 LANGUAGE_POINTS = 20
@@ -77,6 +78,8 @@ def score_job(profile: Profile, job: Job) -> Match | None:
 def top_matches(profile: Profile, jobs: Iterable[Job], limit: int = TOP_MATCHES) -> list[Match]:
     """Best first; ties go to the newer post (higher comment_id). Fewer than `limit` is fine, and an
     empty list means "no strong matches" - never a filler top 3."""
-    scored = (m for m in (score_job(profile, job) for job in jobs) if m)  # a stream: only `limit` matches are kept
+    # a person's own "looking for work" post is not a job to apply to (data from before that filter may still hold some)
+    openings = (job for job in jobs if not is_candidate_profile(job.raw_text))
+    scored = (m for m in (score_job(profile, job) for job in openings) if m)  # a stream: only `limit` matches are kept
     best = heapq.nlargest(limit, scored, key=lambda m: (m.score, m.job.comment_id))
     return [m.model_copy(update={"rank": i}) for i, m in enumerate(best, start=1)]
