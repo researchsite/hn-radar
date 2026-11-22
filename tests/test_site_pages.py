@@ -35,3 +35,12 @@ def test_every_data_file_the_page_loads_is_published():
     assert {"jobs.json", "signals.json"} <= files
     for name in files:
         assert f"`{name}`" in README, f"{name} is read by check.html but not named in site/README.md"
+
+
+def test_every_node_test_file_is_in_the_documented_command():
+    """PowerShell and Node 20 do not expand a glob, so the docs name each file; a new test file must be added to them."""
+    root = CAREERS.parent.parent
+    docs = {name: (root / name).read_text(encoding="utf-8") for name in ("AGENTS.md", "README.md", "site/README.md")}
+    for test_file in sorted((CAREERS.parent / "tests").glob("*.test.js")):
+        for name, text in docs.items():
+            assert f"site/tests/{test_file.name}" in text, f"{test_file.name} is not in the node --test command in {name}"

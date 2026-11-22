@@ -24,7 +24,7 @@ site/
     pagefind/            careers-only search index, built by tools/build_careers_index.py (git-ignored)
   tools/                 build_careers_index.py: builds that index (tested in tests/test_careers_index.py)
                          make_fit_golden.py: makes the shared test cases for hn-fit.js from the Python reference
-  tests/                 hn-fit.test.js, hn-github.test.js: Node tests (node --test site/tests/*.test.js); also run by uv run pytest when node is installed
+  tests/                 hn-fit.test.js, hn-github.test.js: Node tests (node --test site/tests/hn-fit.test.js site/tests/hn-github.test.js); also run by uv run pytest when node is installed
   includes/, fonts/      dev copies of the live site's design system, nav, footer and fonts (git-ignored)
   favicon.svg, site.webmanifest, images/favicon-*.png   dev copies of the site's icons (git-ignored)
   _private/              local-only notes, templates, prompts and scripts (git-ignored; never committed)
@@ -87,7 +87,7 @@ Run from the repo root, in this order. Steps 3 to 6 read the dev copy `site/care
 | 6 | Careers search index | `uv run python site/tools/build_careers_index.py` | `site/careers/pagefind/` | after every step 2 (the publish script refuses an older index) |
 | 7 | Publish to the live site | `powershell -File site/_private/publish-to-site.ps1` (dry run), then `-Apply` | the site project | see "Moving the folder" below |
 
-The whole monthly refresh, copy and paste (steps 1 to 6; step 4 needs Ollama running, steps 3 and 4 need the network; each command is safe to run again):
+The whole monthly refresh, copy and paste (steps 1 to 7, the last one a dry run; step 4 needs Ollama running; steps 1, 3, 4 and 5 need the network, and step 5 only for the threads of stories that have a pulse and are not cached yet; each command is safe to run again):
 
 ```powershell
 uv run hnradar fetch-hiring
@@ -144,7 +144,7 @@ python -m http.server 8000 --directory site
 
 Open http://localhost:8000/careers/. Use a server, not a `file://` URL, because the page loads JSON with `fetch`. The pages show real data only after the build steps in "Building every data file, in order" (the sync alone gives the job list; Show HN, the company teasers, the username box's Show HN threads and the search need steps 3 to 6).
 
-Tests for the site code: `node --test site/tests/*.test.js` (Node 20 or newer, no packages), and `uv run pytest -q`, which runs the same Node tests when `node` is installed and checks that the pages and this README agree (`tests/test_site_pages.py`).
+Tests for the site code: `node --test site/tests/hn-fit.test.js site/tests/hn-github.test.js` (Node 20 or newer, no packages; the files are named because PowerShell does not expand `*` for Node and Node 20 does not either; a new test file goes into this command, into the README and into AGENTS.md), and `uv run pytest -q`, which runs the same Node tests when `node` is installed and checks that the pages and this README agree (`tests/test_site_pages.py`).
 
 ## Rules for every page
 

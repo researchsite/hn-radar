@@ -135,7 +135,7 @@ uv run hnradar match octocat
 
 ```
 uv run pytest
-node --test site/tests/*.test.js     # the site's JavaScript (pytest also runs it when node is installed)
+node --test site/tests/hn-fit.test.js site/tests/hn-github.test.js     # the site's JavaScript (pytest also runs it when node is installed)
 ```
 
 ## Contributing
