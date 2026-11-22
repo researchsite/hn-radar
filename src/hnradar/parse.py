@@ -12,7 +12,7 @@ _HREF = re.compile(r'href\s*=\s*"([^"]+)"', re.I)
 
 _ROLE = re.compile(
     r"\b(?:engineer\w*|developer\w*|designer|scientist|analyst|manager|architect|"
-    r"devops|sre|backend|back-end|frontend|front-end|full[- ]?stack|lead|interns?|tester|builder|"
+    r"devops|sre|backend|back-end|frontend|front-end|full[- ]?stack|lead|interns?|tester|[\w]+-in-residence|"
     r"cto|founder|head of|recruiter|product|researcher|administrator|consultant|"
     r"sales|executive|staff|officer|chief|director|vp|marketing|writer|technician|"
     r"(?:multiple|several)(?:\s+senior)?\s+(?:roles|positions))\b",
@@ -32,7 +32,8 @@ _LEADING_FILLER = re.compile(r"^(?:we['’]re|we are|about|at)\s+", re.I)
 _COMPANY_END = re.compile(r"\s+(?:-|–|—|is hiring|are hiring)(?=\s|$)|[,.:;(]")
 
 _NOT_REMOTE = re.compile(
-    r"\b(?:no|not|without)\s+remote\b|\bon-?site only\b|"
+    r"\b(?:no|not|without)\s+remote(?:ly)?\b|\bon-?site only\b|"
+    r"\b(?:can['’]?t|cannot|can not|won['’]t|don['’]t|do not|doesn['’]t|unable to)\s+(?:\w+\s+){0,3}?remotely\b|"
     r"\b(?:don't|do not|doesn't)\s+(?:do|offer|support|allow)\s+remote\b|"
     r"\bremote(?:\s+work)?\s+(?:(?:is|are)\s+)?(?:not|isn['’]t|aren['’]t)\s+"
     r"(?:available|possible|offered|supported|an option)\b|"
@@ -158,7 +159,7 @@ _HIRE_CUE = re.compile(
     r"\bour (?:team|company|product|startup)\b",
     re.I,
 )
-_SEEKING_WORK = re.compile(r"^\W*seeking\s+(?:work|freelance|employment)(?![\w-])(?!\s+\w+(?:ers|ors)\b)", re.I)
+_SEEKING_WORK = re.compile(r"^\W*seeking\s+(?:work|freelance|employment)(?![\w-])(?=\s*(?:[-–—|:,.(/]|$))", re.I)
 _RELOCATE_LABEL = re.compile(r"^willing to relocate\s*:", re.I)
 _RESUME_LABELS = (
     re.compile(r"^location\s*:", re.I),

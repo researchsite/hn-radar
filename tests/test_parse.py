@@ -308,3 +308,25 @@ def test_remotely_counts_as_remote():
 
 def test_remote_work_not_available_is_still_not_remote():
     assert parse_comment(1, "Foo | Engineer | Berlin<p>Remote work is not available").remote is False
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Seeking freelance Rails developers\nWe are a small studio.",
+        "Seeking freelance senior Rails developer | Remote\nPlease email us.",
+        "Seeking work for our client's project | Acme",
+    ],
+    ids=["modified-plural", "modified-singular", "work-for-client"],
+)
+def test_seeking_freelance_with_a_role_after_it_is_a_job(text):
+    assert not is_candidate_profile(text)
+
+
+def test_negated_remotely_is_not_remote():
+    for text in ("We can&#x27;t hire remotely", "Not remotely, sorry", "We do not hire anyone remotely at the moment"):
+        assert parse_comment(1, f"Foo | Engineer | Berlin<p>{text}").remote is False, text
+
+
+def test_a_product_description_is_not_a_role():
+    assert parse_comment(1, "Acme | Form builder SaaS | Berlin").role is None
