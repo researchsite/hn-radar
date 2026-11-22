@@ -409,10 +409,14 @@ def radar(
     profiles_dir: Annotated[Path, typer.Option(help="Directory for <user>.json (the saved profile).")] = Path("data/profiles"),
     pulse_dir: Annotated[Path, typer.Option(help="Directory holding saved pulses (`hnradar pulse`).")] = Path("data/pulse"),
     out: Annotated[Path | None, typer.Option(help="Also write the full result (JSON) to this file. It is about one person: keep it private.")] = None,
-    limit: Annotated[int, typer.Option(min=1, max=10, help="How many of the best matches to follow through Show HN, pulse and draft.")] = TOP_MATCHES,
+    limit: Annotated[int, typer.Option(min=1, max=10, help="How many drafts to look for.")] = TOP_MATCHES,
+    depth: Annotated[int, typer.Option(min=1, max=30, help="Most matches to look at while looking for those drafts (best first).")] = radar_mod.DEFAULT_DEPTH,
     as_json: Annotated[bool, typer.Option("--json", help="Print the result as JSON instead of text.")] = False,
 ) -> None:
-    """From a GitHub username to the top 3 companies (`--limit` for more), each with fit reasons, a cited problem and a draft.
+    """From a GitHub username to up to 3 drafts (`--limit`), each with fit reasons and a cited problem.
+
+    Goes down the best matches until it has `--limit` drafts or has looked at `--depth` matches; every company it
+    looked at is listed, with the reason when it has no draft.
 
     Runs fingerprint, match, Show HN, pulse and draft in order, one progress line per step on stderr. A step that
     fails stops the run with an error naming it; nothing partial is shown as complete. A company with no Show HN
@@ -440,7 +444,7 @@ def radar(
         progress(result.steps[0])
     else:
         result = radar_mod.run_radar(
-            username, jobs, profiles_dir=profiles_dir, pulse_dir=pulse_dir, client=_model_client(model), progress=progress, limit=limit
+            username, jobs, profiles_dir=profiles_dir, pulse_dir=pulse_dir, client=_model_client(model), progress=progress, limit=limit, depth=depth
         )
 
     if out is not None:
@@ -463,7 +467,7 @@ def _echo_radar(result) -> None:
         for line in result.warnings:
             typer.echo(_terminal_safe(line))
         return
-    typer.echo(f"Radar for {_terminal_safe(result.username)}: top {len(result.companies)} companies ({result.status}).")
+    typer.echo(f"Radar for {_terminal_safe(result.username)}: {len(result.companies)} companies checked, {sum(1 for c in result.companies if c.draft)} drafts ({result.status}).")
     for c in result.companies:
         typer.echo("")
         typer.echo(f"{c.rank}. {_terminal_safe(c.company)} | {_terminal_safe(c.role) or '-'} | fit {c.fit_score}/100")

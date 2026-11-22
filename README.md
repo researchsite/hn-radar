@@ -102,12 +102,12 @@ side, not a solved case. If the 10 best matches give no draft, it says lower-ran
 ```
 uv run hnradar radar octo                          # username only: fingerprint, match, Show HN, pulse, draft
 uv run hnradar radar octo --json --out radar.json  # JSON to stdout and to a file (about one person: keep it private)
-uv run hnradar radar octo --limit 6                # follow the 6 best matches instead of 3 (1 to 10)
+uv run hnradar radar octo --limit 5 --depth 15     # look for 5 drafts, going down at most 15 matches (defaults 3 and 10)
 ```
 
 `radar.json` is in `.gitignore` so it is not committed by accident; if you pick another file name, keep it out of git yourself.
 
-The end-to-end run, using the same functions as the single commands. It prints one progress line per step on stderr, then the top 3 companies (`--limit` changes the number): fit reasons, the Show HN story that links to the job link's domain, the problem users reported with its comment ids, and a 5-line draft with its evidence. A company with no such story, no cited problem or no matched repo is listed with the reason and gets no draft; the run is then `partial`. A user with no public repos or no strong match gets a friendly message (exit 0). A step that fails (GitHub, HN, the model) or a jobs file that is missing or unreadable stops the run with `Error: radar stopped at step '<name>': ...` and exit 1; no companies are shown, and `--out` records `status: failed` with the step. A saved pulse (`data/pulse/<story_id>.json`) is used instead of asking the model. A real run is in [docs/radar-example.md](docs/radar-example.md). Nothing is sent.
+The end-to-end run, using the same functions as the single commands. It prints one progress line per step on stderr, then the companies it looked at. It goes down the best matches, a few at a time, until it has `--limit` drafts (default 3) or has looked at `--depth` matches (default 10), so a company far down the list can still get a draft; a run that finds its drafts in the top matches looks no further. For each company: fit reasons, the Show HN story that links to the job link's domain, the problem users reported with its comment ids, and a 5-line draft with its evidence. A company with no such story, no cited problem or no matched repo is listed with the reason and gets no draft; the run is then `partial`, and when the depth ran out first it says that lower-ranked matches were not checked. A user with no public repos or no strong match gets a friendly message (exit 0). A step that fails (GitHub, HN, the model) or a jobs file that is missing or unreadable stops the run with `Error: radar stopped at step '<name>': ...` and exit 1; no companies are shown, and `--out` records `status: failed` with the step. A saved pulse (`data/pulse/<story_id>.json`) is used instead of asking the model. A real run is in [docs/radar-example.md](docs/radar-example.md). Nothing is sent.
 
 ## Typical session
 

@@ -24,6 +24,7 @@ from hnradar.pulse.cluster import PulseError
 from hnradar.sources import github, hn, ollama
 from hnradar.steps import bug_from_pulse, find_story, get_pulse, repo_for_match, save_profile, story_children
 
+DEFAULT_DEPTH = 10  # how many of the best matches the search may look at to find `limit` drafts
 STEP_NAMES = ("fingerprint", "match", "showhn", "pulse", "draft")
 STEP_ERRORS = (ValueError, PulseError, ollama.ModelError, hn.HNError, github.GitHubError, httpx.HTTPError, OSError)
 
@@ -88,10 +89,11 @@ def failed_result(username: str, step: str, message: str) -> "RadarResult":
 
 
 class _StepFailed(Exception):
-    def __init__(self, step: str, cause: BaseException):
+    def __init__(self, step: str, cause: BaseException, started: float):
         super().__init__(f"{step}: {cause}")
         self.step = step
         self.cause = cause
+        self.started = started
 
 
 def _now() -> str:
@@ -111,6 +113,7 @@ def run_radar(
     progress: Callable[[RadarStep], None] = lambda step: None,
     clock: Callable[[], float] = time.monotonic,
     limit: int = TOP_MATCHES,
+    depth: int = DEFAULT_DEPTH,
 ) -> RadarResult:
     steps: list[RadarStep] = []
 
@@ -142,10 +145,10 @@ def run_radar(
         return RadarResult(username=profile.username, generated_at=_now(), status="no_matches", steps=steps, profile_summary=summary,
                            warnings=[f"{profile.username} has no public repos, so there is nothing to match."])
 
-    # 2. match
+    # 2. match: as many matches as the search may look at (depth); the stages below take them in rank order
     t = clock()
     try:
-        matches = top_matches(profile, jobs, limit)
+        matches = top_matches(profile, jobs, depth)  # depth is a hard cap: a smaller depth than limit means fewer drafts, not more lookups
     except STEP_ERRORS as exc:
         return failed("match", exc, t)
     record("match", "ok", t, f"{len(matches)} of {len(jobs)} jobs")
@@ -154,78 +157,115 @@ def run_radar(
         return RadarResult(username=profile.username, generated_at=_now(), status="no_matches", steps=steps, profile_summary=summary,
                            warnings=[f"No strong matches for {profile.username} in {len(jobs)} jobs."])
 
-    companies = [
-        RadarCompany(rank=m.rank, company=m.job.company, role=m.job.role, job_comment_id=m.job.comment_id, job_url=m.job.url,
-                     fit_score=m.score, fit_reasons=[r.text for r in m.reasons], pulse_status="no_show_hn", draft_status="skipped")
-        for m in matches
-    ]
-    by_rank = {c.rank: (c, m) for c, m in zip(companies, matches, strict=True)}
+    # 3-5. Show HN, pulse and draft, a batch of matches at a time: the next batch is only looked at while fewer than
+    # `limit` drafts exist, so a run that finds its drafts in the top matches does no extra work.
+    companies: list[RadarCompany] = []
+    spent = {"showhn": 0.0, "pulse": 0.0, "draft": 0.0}
+    counts = {"story": 0, "bug": 0, "draft": 0}
 
-    # 3. Show HN: the story that links to each job link's own domain
-    t = clock()
-    lookups = {}
-    try:
+    def run_batch(batch: list) -> None:
+        by_rank = {m.rank: (RadarCompany(
+            rank=m.rank, company=m.job.company, role=m.job.role, job_comment_id=m.job.comment_id, job_url=m.job.url,
+            fit_score=m.score, fit_reasons=[r.text for r in m.reasons], pulse_status="no_show_hn", draft_status="skipped"), m) for m in batch}
+        companies.extend(c for c, _m in by_rank.values())
+
+        # Show HN: the story that links to each job link's own domain
+        t0 = clock()
+        lookups = {}
+        try:
+            for rank, (c, m) in by_rank.items():
+                lookups[rank] = find_story(m.job.company, m.job.url, search)
+        except STEP_ERRORS as exc:
+            raise _StepFailed("showhn", exc, t0) from exc
         for rank, (c, m) in by_rank.items():
-            lookups[rank] = find_story(m.job.company, m.job.url, search)
-    except STEP_ERRORS as exc:
-        return failed("showhn", exc, t)
-    for rank, (c, m) in by_rank.items():
-        look = lookups[rank]
-        if look.story is None:
-            c.note = look.skip
-        else:
-            c.show_hn = RadarStory(story_id=look.story.story_id, title=look.story.title, domain=look.domain,
-                                   url=f"https://news.ycombinator.com/item?id={look.story.story_id}")
-    with_story = [r for r in by_rank if by_rank[r][0].show_hn is not None]
-    record("showhn", "ok" if with_story else "skipped", t, f"{len(with_story)} of {len(companies)} companies have a Show HN that links to their domain")
+            look = lookups[rank]
+            if look.story is None:
+                c.note = look.skip
+            else:
+                c.show_hn = RadarStory(story_id=look.story.story_id, title=look.story.title, domain=look.domain,
+                                       url=f"https://news.ycombinator.com/item?id={look.story.story_id}")
+        with_story = [r for r in by_rank if by_rank[r][0].show_hn is not None]
+        counts["story"] += len(with_story)
+        spent["showhn"] += clock() - t0
 
-    # 4. pulse: the saved pulse of the story, or a fresh one; the first bug whose comments are all in the thread
-    t = clock()
-    bugs: dict[int, tuple[str, list[dict]]] = {}
+        # pulse: the saved pulse of the story, or a fresh one; the first bug whose comments are all in the thread
+        t0 = clock()
+        bugs: dict[int, tuple[str, list[dict]]] = {}
+        try:
+            for rank in with_story:
+                c = by_rank[rank][0]
+                children = story_children(c.show_hn.story_id, fetch_item)
+                if children is None:
+                    c.pulse_status, c.note = "not_enough_signal", f"{c.show_hn.story_id} is not a story"
+                    continue
+                result = get_pulse(c.show_hn.story_id, children, pulse_dir, client)
+                if result is None:
+                    c.pulse_status, c.note = "not_enough_signal", "too few comments with text to say what people think"
+                    continue
+                bug = bug_from_pulse(result, children)
+                if bug is None:
+                    c.pulse_status, c.note = "no_cited_problem", "no problem the users reported is backed by comments in the thread"
+                    continue
+                c.pulse_status = "ok"
+                c.problem = RadarProblem(summary=bug[0], comment_ids=[x["id"] for x in bug[1]])
+                bugs[rank] = bug
+        except STEP_ERRORS as exc:
+            raise _StepFailed("pulse", exc, t0) from exc
+        counts["bug"] += len(bugs)
+        spent["pulse"] += clock() - t0
+
+        # draft: one note per company that has a cited problem and a repo the match names
+        t0 = clock()
+        try:
+            for rank, bug in bugs.items():
+                c, m = by_rank[rank]
+                repo = repo_for_match(profile, m)
+                if repo is None:
+                    c.note = "no repo of yours is named by the match, so there is nothing to offer"
+                    continue
+                drafted = write_draft(
+                    username=profile.username, company=c.company, domain=c.show_hn.domain, story_id=c.show_hn.story_id,
+                    repo={"name": repo.name, "language": repo.language, "description": repo.description},
+                    problem=bug[0], cited=bug[1], client=client,
+                )
+                c.draft, c.draft_status = drafted, "written"
+                counts["draft"] += 1
+        except STEP_ERRORS as exc:
+            raise _StepFailed("draft", exc, t0) from exc
+        spent["draft"] += clock() - t0
+
+    def record_total(name: str) -> None:
+        text = {
+            "showhn": f"{counts['story']} of {len(companies)} companies have a Show HN that links to their domain",
+            "pulse": f"{counts['bug']} of {counts['story']} threads have a cited problem",
+            "draft": f"{counts['draft']} of {counts['bug']} drafts written",
+        }[name]
+        ok = {"showhn": counts["story"], "pulse": counts["bug"], "draft": counts["draft"]}[name] > 0
+        step = RadarStep(name=name, status="ok" if ok else "skipped", seconds=round(spent[name], 2), message=text)
+        steps.append(step)
+        progress(step)
+
+    examined = 0
     try:
-        for rank in with_story:
-            c = by_rank[rank][0]
-            children = story_children(c.show_hn.story_id, fetch_item)
-            if children is None:
-                c.pulse_status, c.note = "not_enough_signal", f"{c.show_hn.story_id} is not a story"
-                continue
-            result = get_pulse(c.show_hn.story_id, children, pulse_dir, client)
-            if result is None:
-                c.pulse_status, c.note = "not_enough_signal", "too few comments with text to say what people think"
-                continue
-            bug = bug_from_pulse(result, children)
-            if bug is None:
-                c.pulse_status, c.note = "no_cited_problem", "no problem the users reported is backed by comments in the thread"
-                continue
-            c.pulse_status = "ok"
-            c.problem = RadarProblem(summary=bug[0], comment_ids=[x["id"] for x in bug[1]])
-            bugs[rank] = bug
-    except STEP_ERRORS as exc:
-        return failed("pulse", exc, t)
-    record("pulse", "ok" if bugs else "skipped", t, f"{len(bugs)} of {len(with_story)} threads have a cited problem")
+        while examined < len(matches) and counts["draft"] < limit:
+            batch = matches[examined:examined + (limit - counts["draft"])]
+            examined += len(batch)
+            run_batch(batch)
+    except _StepFailed as exc:
+        for name in ("showhn", "pulse", "draft")[: ("showhn", "pulse", "draft").index(exc.step)]:  # the stages that finished
+            record_total(name)
+        return failed(exc.step, exc.cause, exc.started - spent[exc.step])  # the failed step's time covers its whole stage
 
-    # 5. draft: one note per company that has a cited problem and a repo the match names
-    t = clock()
-    written = 0
-    try:
-        for rank, bug in bugs.items():
-            c, m = by_rank[rank]
-            repo = repo_for_match(profile, m)
-            if repo is None:
-                c.note = "no repo of yours is named by the match, so there is nothing to offer"
-                continue
-            drafted = write_draft(
-                username=profile.username, company=c.company, domain=c.show_hn.domain, story_id=c.show_hn.story_id,
-                repo={"name": repo.name, "language": repo.language, "description": repo.description},
-                problem=bug[0], cited=bug[1], client=client,
-            )
-            c.draft, c.draft_status = drafted, "written"
-            written += 1
-    except STEP_ERRORS as exc:
-        return failed("draft", exc, t)
-    record("draft", "ok" if written else "skipped", t, f"{written} of {len(bugs)} drafts written")
+    for name in ("showhn", "pulse", "draft"):
+        record_total(name)
 
-    status = "ok" if written == len(companies) else "partial"
-    warnings = [] if status == "ok" else [f"{len(companies) - written} of {len(companies)} companies have no draft: see each company's note."]
+    written = counts["draft"]
+    cut = written < limit and len(matches) == depth  # rule 6: a cut search is not a complete one
+    status = "ok" if written == len(companies) and not cut else "partial"
+    warnings = []
+    if written < len(companies):
+        warnings.append(f"{len(companies) - written} of {len(companies)} companies have no draft: see each company's note.")
+    if cut:
+        warnings.append(f"Only the {len(matches)} best matches were checked (depth {depth}); lower-ranked matches were not.")
     return RadarResult(username=profile.username, generated_at=_now(), status=status, steps=steps, profile_summary=summary,
                        companies=companies, warnings=warnings)
