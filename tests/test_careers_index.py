@@ -67,6 +67,18 @@ def test_empty_list_refuses_to_build(tmp_path):
         bci.load_jobs(write_jobs(tmp_path, []))
 
 
+def test_a_candidate_profile_post_in_the_file_refuses_to_build(tmp_path):
+    seeker = job(7, raw_text="SEEKING FREELANCE - Egypt - Remote\nSenior engineer, 4 yrs. Portfolio: https://example.com")
+    with pytest.raises(bci.IndexBuildError, match=r"1 posts that are a person's own profile, not a job \(comment ids: 7\)"):
+        bci.load_jobs(write_jobs(tmp_path, [job(1), seeker]))
+
+
+def test_many_candidate_posts_are_counted_and_the_list_is_cut(tmp_path):
+    seekers = [job(i, raw_text="SEEKING WORK | Remote\nPython developer.") for i in range(1, 13)]
+    with pytest.raises(bci.IndexBuildError, match=r"12 posts that are .*1, 2, 3, 4, 5, 6, 7, 8, 9, 10 and 2 more"):
+        bci.load_jobs(write_jobs(tmp_path, seekers))
+
+
 def test_record_without_valid_comment_id_is_reported_not_dropped(tmp_path):
     path = write_jobs(tmp_path, [job(1), {"company": "No id", "raw_text": "x"}, job("abc")])
     with pytest.raises(bci.IndexBuildError, match=r"2 of 3 records .*\(positions: 1, 2\)"):

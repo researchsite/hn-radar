@@ -27,6 +27,7 @@ from pydantic import ValidationError
 
 from hnradar.cli import _terminal_safe  # one cleaner for untrusted post text (control and format characters)
 from hnradar.models import Job
+from hnradar.parse import is_candidate_profile
 
 # Must match the version of the site's committed index (rawweightfinal/pagefind/pagefind-entry.json, "version").
 PAGEFIND_VERSION = "1.6.0"
@@ -73,6 +74,11 @@ def load_jobs(path: Path) -> list[Job]:
         if job.comment_id in seen:
             raise IndexBuildError(f"duplicate comment_id {job.comment_id} in {path}")
         seen.add(job.comment_id)
+    # The pages (and the browser match in hn-fit.js, which does not repeat this check) assume the file holds openings only.
+    people = [job.comment_id for job in jobs if is_candidate_profile(job.raw_text)]
+    if people:
+        shown = ", ".join(str(i) for i in people[:10]) + (f" and {len(people) - 10} more" if len(people) > 10 else "")
+        raise IndexBuildError(f"{path} holds {len(people)} posts that are a person's own profile, not a job (comment ids: {shown}). Run `hnradar fetch-hiring` again.")
     if not jobs:
         raise IndexBuildError(f"{path} has no jobs: refusing to build an empty index")
     return jobs

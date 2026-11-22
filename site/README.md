@@ -17,10 +17,13 @@ site/
     journey.html         placeholder: coming soon (issue 31)
     check.html           Check yours: load the radar.json that `hnradar radar USER --out radar.json` made on your own computer and see it (issue 31)
     hn.css, hn.js        shared styles and helpers (text cleaning, safe links, designed states); hn.js holds PATHS
+    hn-fit.js            profile and match logic for the browser: a port of fingerprint.py and match.py (no DOM, no network); the Python code is the reference (issue 56)
     data/jobs.json       dev copy of ../../data/jobs.json (git-ignored, refreshed by the sync script)
     images/, videos/     pictures and videos used by the pages (committed; video names start with careers-)
     pagefind/            careers-only search index, built by tools/build_careers_index.py (git-ignored)
   tools/                 build_careers_index.py: builds that index (tested in tests/test_careers_index.py)
+                         make_fit_golden.py: makes the shared test cases for hn-fit.js from the Python reference
+  tests/                 hn-fit.test.js: Node tests (node --test site/tests/hn-fit.test.js); also run by uv run pytest when node is installed
   includes/, fonts/      dev copies of the live site's design system, nav, footer and fonts (git-ignored)
   favicon.svg, site.webmanifest, images/favicon-*.png   dev copies of the site's icons (git-ignored)
   _private/              local-only notes, templates, prompts and scripts (git-ignored; never committed)
@@ -162,3 +165,6 @@ The full checklist, with the exact commands and the open decisions (placeholder 
 ## Building with an agent
 
 `site/_private/BUILD_PROMPT.md` is a ready prompt for a design and front-end thread. It points to the data schemas and examples, the design guide and the templates, and states the constraints above.
+
+### Match logic in the browser (`hn-fit.js`)
+`hn-fit.js` turns a list of public repos into a profile and ranks jobs the same way `hnradar match` does (issue 56). It has no DOM, network or storage code, and a test fails if it gains any. The Python code (`fingerprint.py`, `match.py`) is the reference: `site/tools/make_fit_golden.py` makes `tests/fixtures/fit_golden.json` from it (32 cases: edge cases and real behaviours such as aliases, ties and the 100 cap), `tests/test_fit_golden.py` fails when that file is out of date, and `site/tests/hn-fit.test.js` fails when the JavaScript gives a different answer. Change either side, run `uv run python site/tools/make_fit_golden.py`, and commit both. The rules for site code are in AGENTS.md ("Site rules").

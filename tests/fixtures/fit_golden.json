@@ -1,0 +1,2796 @@
+{
+ "profile_cases": [
+  {
+   "name": "empty",
+   "username": "octo",
+   "repos": [],
+   "profile": {
+    "username": "octo",
+    "languages": [],
+    "topics": [],
+    "notable_repos": []
+   }
+  },
+  {
+   "name": "forks_only",
+   "username": "octo",
+   "repos": [
+    {
+     "name": "f",
+     "language": "Python",
+     "stargazers_count": 99,
+     "topics": [
+      "x"
+     ],
+     "size": 100,
+     "fork": true,
+     "description": null
+    }
+   ],
+   "profile": {
+    "username": "octo",
+    "languages": [],
+    "topics": [],
+    "notable_repos": []
+   }
+  },
+  {
+   "name": "forks_are_excluded_everywhere",
+   "username": "octo",
+   "repos": [
+    {
+     "name": "mine",
+     "language": "Go",
+     "stargazers_count": 1,
+     "topics": [
+      "cli"
+     ],
+     "size": 100,
+     "fork": false,
+     "description": null
+    },
+    {
+     "name": "theirs",
+     "language": "Rust",
+     "stargazers_count": 500,
+     "topics": [
+      "cli",
+      "rust"
+     ],
+     "size": 100,
+     "fork": true,
+     "description": null
+    }
+   ],
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Go",
+      "size_kb": 100
+     }
+    ],
+    "topics": [
+     "cli"
+    ],
+    "notable_repos": [
+     {
+      "name": "mine",
+      "description": null,
+      "stars": 1,
+      "language": "Go"
+     }
+    ]
+   }
+  },
+  {
+   "name": "language_size_is_summed_and_ties_go_by_name",
+   "username": "octo",
+   "repos": [
+    {
+     "name": "a",
+     "language": "Python",
+     "stargazers_count": 0,
+     "topics": [],
+     "size": 50,
+     "fork": false,
+     "description": null
+    },
+    {
+     "name": "b",
+     "language": "Python",
+     "stargazers_count": 0,
+     "topics": [],
+     "size": 50,
+     "fork": false,
+     "description": null
+    },
+    {
+     "name": "c",
+     "language": "Go",
+     "stargazers_count": 0,
+     "topics": [],
+     "size": 100,
+     "fork": false,
+     "description": null
+    },
+    {
+     "name": "d",
+     "language": "Ada",
+     "stargazers_count": 0,
+     "topics": [],
+     "size": 100,
+     "fork": false,
+     "description": null
+    }
+   ],
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Ada",
+      "size_kb": 100
+     },
+     {
+      "name": "Go",
+      "size_kb": 100
+     },
+     {
+      "name": "Python",
+      "size_kb": 100
+     }
+    ],
+    "topics": [],
+    "notable_repos": [
+     {
+      "name": "a",
+      "description": null,
+      "stars": 0,
+      "language": "Python"
+     },
+     {
+      "name": "b",
+      "description": null,
+      "stars": 0,
+      "language": "Python"
+     },
+     {
+      "name": "c",
+      "description": null,
+      "stars": 0,
+      "language": "Go"
+     },
+     {
+      "name": "d",
+      "description": null,
+      "stars": 0,
+      "language": "Ada"
+     }
+    ]
+   }
+  },
+  {
+   "name": "only_five_languages",
+   "username": "octo",
+   "repos": [
+    {
+     "name": "r0",
+     "language": "Lang0",
+     "stargazers_count": 0,
+     "topics": [],
+     "size": 100,
+     "fork": false,
+     "description": null
+    },
+    {
+     "name": "r1",
+     "language": "Lang1",
+     "stargazers_count": 0,
+     "topics": [],
+     "size": 99,
+     "fork": false,
+     "description": null
+    },
+    {
+     "name": "r2",
+     "language": "Lang2",
+     "stargazers_count": 0,
+     "topics": [],
+     "size": 98,
+     "fork": false,
+     "description": null
+    },
+    {
+     "name": "r3",
+     "language": "Lang3",
+     "stargazers_count": 0,
+     "topics": [],
+     "size": 97,
+     "fork": false,
+     "description": null
+    },
+    {
+     "name": "r4",
+     "language": "Lang4",
+     "stargazers_count": 0,
+     "topics": [],
+     "size": 96,
+     "fork": false,
+     "description": null
+    },
+    {
+     "name": "r5",
+     "language": "Lang5",
+     "stargazers_count": 0,
+     "topics": [],
+     "size": 95,
+     "fork": false,
+     "description": null
+    },
+    {
+     "name": "r6",
+     "language": "Lang6",
+     "stargazers_count": 0,
+     "topics": [],
+     "size": 94,
+     "fork": false,
+     "description": null
+    },
+    {
+     "name": "r7",
+     "language": "Lang7",
+     "stargazers_count": 0,
+     "topics": [],
+     "size": 93,
+     "fork": false,
+     "description": null
+    }
+   ],
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Lang0",
+      "size_kb": 100
+     },
+     {
+      "name": "Lang1",
+      "size_kb": 99
+     },
+     {
+      "name": "Lang2",
+      "size_kb": 98
+     },
+     {
+      "name": "Lang3",
+      "size_kb": 97
+     },
+     {
+      "name": "Lang4",
+      "size_kb": 96
+     }
+    ],
+    "topics": [],
+    "notable_repos": [
+     {
+      "name": "r0",
+      "description": null,
+      "stars": 0,
+      "language": "Lang0"
+     },
+     {
+      "name": "r1",
+      "description": null,
+      "stars": 0,
+      "language": "Lang1"
+     },
+     {
+      "name": "r2",
+      "description": null,
+      "stars": 0,
+      "language": "Lang2"
+     },
+     {
+      "name": "r3",
+      "description": null,
+      "stars": 0,
+      "language": "Lang3"
+     },
+     {
+      "name": "r4",
+      "description": null,
+      "stars": 0,
+      "language": "Lang4"
+     }
+    ]
+   }
+  },
+  {
+   "name": "only_ten_topics_count_then_name",
+   "username": "octo",
+   "repos": [
+    {
+     "name": "t",
+     "language": null,
+     "stargazers_count": 0,
+     "topics": [
+      "topic00",
+      "topic01",
+      "topic02",
+      "topic03",
+      "topic04",
+      "topic05",
+      "topic06",
+      "topic07",
+      "topic08",
+      "topic09",
+      "topic10",
+      "topic11",
+      "topic12",
+      "topic13"
+     ],
+     "size": 100,
+     "fork": false,
+     "description": null
+    },
+    {
+     "name": "u",
+     "language": null,
+     "stargazers_count": 0,
+     "topics": [
+      "topic13",
+      "topic12"
+     ],
+     "size": 100,
+     "fork": false,
+     "description": null
+    }
+   ],
+   "profile": {
+    "username": "octo",
+    "languages": [],
+    "topics": [
+     "topic12",
+     "topic13",
+     "topic00",
+     "topic01",
+     "topic02",
+     "topic03",
+     "topic04",
+     "topic05",
+     "topic06",
+     "topic07"
+    ],
+    "notable_repos": [
+     {
+      "name": "t",
+      "description": null,
+      "stars": 0,
+      "language": null
+     },
+     {
+      "name": "u",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   }
+  },
+  {
+   "name": "only_five_notable_repos_stars_then_name",
+   "username": "octo",
+   "repos": [
+    {
+     "name": "repo00",
+     "language": "Python",
+     "stargazers_count": 0,
+     "topics": [],
+     "size": 100,
+     "fork": false,
+     "description": null
+    },
+    {
+     "name": "repo01",
+     "language": "Python",
+     "stargazers_count": 1,
+     "topics": [],
+     "size": 100,
+     "fork": false,
+     "description": null
+    },
+    {
+     "name": "repo02",
+     "language": "Python",
+     "stargazers_count": 2,
+     "topics": [],
+     "size": 100,
+     "fork": false,
+     "description": null
+    },
+    {
+     "name": "repo03",
+     "language": "Python",
+     "stargazers_count": 0,
+     "topics": [],
+     "size": 100,
+     "fork": false,
+     "description": null
+    },
+    {
+     "name": "repo04",
+     "language": "Python",
+     "stargazers_count": 1,
+     "topics": [],
+     "size": 100,
+     "fork": false,
+     "description": null
+    },
+    {
+     "name": "repo05",
+     "language": "Python",
+     "stargazers_count": 2,
+     "topics": [],
+     "size": 100,
+     "fork": false,
+     "description": null
+    },
+    {
+     "name": "repo06",
+     "language": "Python",
+     "stargazers_count": 0,
+     "topics": [],
+     "size": 100,
+     "fork": false,
+     "description": null
+    },
+    {
+     "name": "repo07",
+     "language": "Python",
+     "stargazers_count": 1,
+     "topics": [],
+     "size": 100,
+     "fork": false,
+     "description": null
+    },
+    {
+     "name": "repo08",
+     "language": "Python",
+     "stargazers_count": 2,
+     "topics": [],
+     "size": 100,
+     "fork": false,
+     "description": null
+    }
+   ],
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Python",
+      "size_kb": 900
+     }
+    ],
+    "topics": [],
+    "notable_repos": [
+     {
+      "name": "repo02",
+      "description": null,
+      "stars": 2,
+      "language": "Python"
+     },
+     {
+      "name": "repo05",
+      "description": null,
+      "stars": 2,
+      "language": "Python"
+     },
+     {
+      "name": "repo08",
+      "description": null,
+      "stars": 2,
+      "language": "Python"
+     },
+     {
+      "name": "repo01",
+      "description": null,
+      "stars": 1,
+      "language": "Python"
+     },
+     {
+      "name": "repo04",
+      "description": null,
+      "stars": 1,
+      "language": "Python"
+     }
+    ]
+   }
+  },
+  {
+   "name": "missing_fields",
+   "username": "octo",
+   "repos": [
+    {
+     "name": "bare"
+    },
+    {
+     "name": "nulls",
+     "language": null,
+     "size": null,
+     "topics": null,
+     "stargazers_count": null,
+     "description": null
+    }
+   ],
+   "profile": {
+    "username": "octo",
+    "languages": [],
+    "topics": [],
+    "notable_repos": [
+     {
+      "name": "bare",
+      "description": null,
+      "stars": 0,
+      "language": null
+     },
+     {
+      "name": "nulls",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   }
+  },
+  {
+   "name": "description_and_null_language",
+   "username": "octo",
+   "repos": [
+    {
+     "name": "d",
+     "language": null,
+     "stargazers_count": 3,
+     "topics": [],
+     "size": 100,
+     "fork": false,
+     "description": "A job queue"
+    },
+    {
+     "name": "e",
+     "language": "Python",
+     "stargazers_count": 3,
+     "topics": [],
+     "size": 100,
+     "fork": false,
+     "description": null
+    }
+   ],
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Python",
+      "size_kb": 100
+     }
+    ],
+    "topics": [],
+    "notable_repos": [
+     {
+      "name": "d",
+      "description": "A job queue",
+      "stars": 3,
+      "language": null
+     },
+     {
+      "name": "e",
+      "description": null,
+      "stars": 3,
+      "language": "Python"
+     }
+    ]
+   }
+  },
+  {
+   "name": "no_language_means_no_size",
+   "username": "octo",
+   "repos": [
+    {
+     "name": "z",
+     "language": null,
+     "stargazers_count": 0,
+     "topics": [],
+     "size": 9999,
+     "fork": false,
+     "description": null
+    },
+    {
+     "name": "y",
+     "language": "Zig",
+     "stargazers_count": 0,
+     "topics": [],
+     "size": 1,
+     "fork": false,
+     "description": null
+    }
+   ],
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Zig",
+      "size_kb": 1
+     }
+    ],
+    "topics": [],
+    "notable_repos": [
+     {
+      "name": "y",
+      "description": null,
+      "stars": 0,
+      "language": "Zig"
+     },
+     {
+      "name": "z",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   }
+  }
+ ],
+ "score_cases": [
+  {
+   "name": "no_overlap",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Python",
+      "size_kb": 1100
+     },
+     {
+      "name": "Go",
+      "size_kb": 999
+     }
+    ],
+    "topics": [
+     "cli",
+     "docker"
+    ],
+    "notable_repos": [
+     {
+      "name": "fastq",
+      "description": null,
+      "stars": 1,
+      "language": "Python"
+     },
+     {
+      "name": "l0",
+      "description": null,
+      "stars": 0,
+      "language": "Python"
+     },
+     {
+      "name": "l1",
+      "description": null,
+      "stars": 0,
+      "language": "Go"
+     },
+     {
+      "name": "t0",
+      "description": null,
+      "stars": 0,
+      "language": null
+     },
+     {
+      "name": "t1",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   },
+   "job": {
+    "comment_id": 1,
+    "company": "A",
+    "role": "Dev",
+    "location": null,
+    "remote": null,
+    "stack": [
+     "COBOL"
+    ],
+    "url": null,
+    "raw_text": "A",
+    "closed": false,
+    "closed_comment_id": null
+   },
+   "expected": null
+  },
+  {
+   "name": "empty_stack",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Python",
+      "size_kb": 1100
+     },
+     {
+      "name": "Go",
+      "size_kb": 999
+     }
+    ],
+    "topics": [
+     "cli",
+     "docker"
+    ],
+    "notable_repos": [
+     {
+      "name": "fastq",
+      "description": null,
+      "stars": 1,
+      "language": "Python"
+     },
+     {
+      "name": "l0",
+      "description": null,
+      "stars": 0,
+      "language": "Python"
+     },
+     {
+      "name": "l1",
+      "description": null,
+      "stars": 0,
+      "language": "Go"
+     },
+     {
+      "name": "t0",
+      "description": null,
+      "stars": 0,
+      "language": null
+     },
+     {
+      "name": "t1",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   },
+   "job": {
+    "comment_id": 1,
+    "company": "A",
+    "role": "Dev",
+    "location": null,
+    "remote": null,
+    "stack": [],
+    "url": null,
+    "raw_text": "A",
+    "closed": false,
+    "closed_comment_id": null
+   },
+   "expected": null
+  },
+  {
+   "name": "language_and_repo_reason",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Python",
+      "size_kb": 1100
+     },
+     {
+      "name": "Go",
+      "size_kb": 999
+     }
+    ],
+    "topics": [
+     "cli",
+     "docker"
+    ],
+    "notable_repos": [
+     {
+      "name": "fastq",
+      "description": null,
+      "stars": 1,
+      "language": "Python"
+     },
+     {
+      "name": "l0",
+      "description": null,
+      "stars": 0,
+      "language": "Python"
+     },
+     {
+      "name": "l1",
+      "description": null,
+      "stars": 0,
+      "language": "Go"
+     },
+     {
+      "name": "t0",
+      "description": null,
+      "stars": 0,
+      "language": null
+     },
+     {
+      "name": "t1",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   },
+   "job": {
+    "comment_id": 2,
+    "company": "B",
+    "role": "Dev",
+    "location": null,
+    "remote": null,
+    "stack": [
+     "Python"
+    ],
+    "url": null,
+    "raw_text": "B",
+    "closed": false,
+    "closed_comment_id": null
+   },
+   "expected": {
+    "rank": 0,
+    "score": 20,
+    "job": {
+     "comment_id": 2,
+     "company": "B",
+     "role": "Dev",
+     "remote": null,
+     "url": null
+    },
+    "reasons": [
+     {
+      "kind": "language",
+      "text": "Your Python work matches this job's stack",
+      "evidence": "Python"
+     },
+     {
+      "kind": "repo",
+      "text": "Your repo fastq is written in Python",
+      "evidence": "fastq"
+     }
+    ]
+   }
+  },
+  {
+   "name": "language_beats_topic_of_the_same_name",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Go",
+      "size_kb": 1000
+     }
+    ],
+    "topics": [
+     "go"
+    ],
+    "notable_repos": [
+     {
+      "name": "l0",
+      "description": null,
+      "stars": 0,
+      "language": "Go"
+     },
+     {
+      "name": "t0",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   },
+   "job": {
+    "comment_id": 3,
+    "company": "C",
+    "role": "Dev",
+    "location": null,
+    "remote": null,
+    "stack": [
+     "Go"
+    ],
+    "url": null,
+    "raw_text": "C",
+    "closed": false,
+    "closed_comment_id": null
+   },
+   "expected": {
+    "rank": 0,
+    "score": 20,
+    "job": {
+     "comment_id": 3,
+     "company": "C",
+     "role": "Dev",
+     "remote": null,
+     "url": null
+    },
+    "reasons": [
+     {
+      "kind": "language",
+      "text": "Your Go work matches this job's stack",
+      "evidence": "Go"
+     },
+     {
+      "kind": "repo",
+      "text": "Your repo l0 is written in Go",
+      "evidence": "l0"
+     }
+    ]
+   }
+  },
+  {
+   "name": "topic_only",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Python",
+      "size_kb": 1100
+     },
+     {
+      "name": "Go",
+      "size_kb": 999
+     }
+    ],
+    "topics": [
+     "cli",
+     "docker"
+    ],
+    "notable_repos": [
+     {
+      "name": "fastq",
+      "description": null,
+      "stars": 1,
+      "language": "Python"
+     },
+     {
+      "name": "l0",
+      "description": null,
+      "stars": 0,
+      "language": "Python"
+     },
+     {
+      "name": "l1",
+      "description": null,
+      "stars": 0,
+      "language": "Go"
+     },
+     {
+      "name": "t0",
+      "description": null,
+      "stars": 0,
+      "language": null
+     },
+     {
+      "name": "t1",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   },
+   "job": {
+    "comment_id": 4,
+    "company": "D",
+    "role": "Dev",
+    "location": null,
+    "remote": null,
+    "stack": [
+     "Docker"
+    ],
+    "url": null,
+    "raw_text": "D",
+    "closed": false,
+    "closed_comment_id": null
+   },
+   "expected": {
+    "rank": 0,
+    "score": 10,
+    "job": {
+     "comment_id": 4,
+     "company": "D",
+     "role": "Dev",
+     "remote": null,
+     "url": null
+    },
+    "reasons": [
+     {
+      "kind": "topic",
+      "text": "Your repos use the topic docker",
+      "evidence": "docker"
+     }
+    ]
+   }
+  },
+  {
+   "name": "aliases_golang_k8s_postgres",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Go",
+      "size_kb": 1000
+     }
+    ],
+    "topics": [
+     "kubernetes",
+     "postgresql"
+    ],
+    "notable_repos": [
+     {
+      "name": "l0",
+      "description": null,
+      "stars": 0,
+      "language": "Go"
+     },
+     {
+      "name": "t0",
+      "description": null,
+      "stars": 0,
+      "language": null
+     },
+     {
+      "name": "t1",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   },
+   "job": {
+    "comment_id": 5,
+    "company": "E",
+    "role": "Dev",
+    "location": null,
+    "remote": null,
+    "stack": [
+     "golang",
+     "k8s",
+     "Postgres"
+    ],
+    "url": null,
+    "raw_text": "E",
+    "closed": false,
+    "closed_comment_id": null
+   },
+   "expected": {
+    "rank": 0,
+    "score": 40,
+    "job": {
+     "comment_id": 5,
+     "company": "E",
+     "role": "Dev",
+     "remote": null,
+     "url": null
+    },
+    "reasons": [
+     {
+      "kind": "language",
+      "text": "Your Go work matches this job's stack",
+      "evidence": "Go"
+     },
+     {
+      "kind": "repo",
+      "text": "Your repo l0 is written in Go",
+      "evidence": "l0"
+     },
+     {
+      "kind": "topic",
+      "text": "Your repos use the topic kubernetes",
+      "evidence": "kubernetes"
+     },
+     {
+      "kind": "topic",
+      "text": "Your repos use the topic postgresql",
+      "evidence": "postgresql"
+     }
+    ]
+   }
+  },
+  {
+   "name": "next_js_and_symbols",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "C++",
+      "size_kb": 1000
+     },
+     {
+      "name": "C#",
+      "size_kb": 999
+     }
+    ],
+    "topics": [
+     "nextjs"
+    ],
+    "notable_repos": [
+     {
+      "name": "l0",
+      "description": null,
+      "stars": 0,
+      "language": "C++"
+     },
+     {
+      "name": "l1",
+      "description": null,
+      "stars": 0,
+      "language": "C#"
+     },
+     {
+      "name": "t0",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   },
+   "job": {
+    "comment_id": 6,
+    "company": "F",
+    "role": "Dev",
+    "location": null,
+    "remote": null,
+    "stack": [
+     "C++",
+     "C#",
+     "Next.js"
+    ],
+    "url": null,
+    "raw_text": "F",
+    "closed": false,
+    "closed_comment_id": null
+   },
+   "expected": {
+    "rank": 0,
+    "score": 50,
+    "job": {
+     "comment_id": 6,
+     "company": "F",
+     "role": "Dev",
+     "remote": null,
+     "url": null
+    },
+    "reasons": [
+     {
+      "kind": "language",
+      "text": "Your C++ work matches this job's stack",
+      "evidence": "C++"
+     },
+     {
+      "kind": "language",
+      "text": "Your C# work matches this job's stack",
+      "evidence": "C#"
+     },
+     {
+      "kind": "repo",
+      "text": "Your repo l0 is written in C++",
+      "evidence": "l0"
+     },
+     {
+      "kind": "topic",
+      "text": "Your repos use the topic nextjs",
+      "evidence": "nextjs"
+     }
+    ]
+   }
+  },
+  {
+   "name": "duplicate_terms_count_once",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "JavaScript",
+      "size_kb": 1000
+     }
+    ],
+    "topics": [
+     "react"
+    ],
+    "notable_repos": [
+     {
+      "name": "l0",
+      "description": null,
+      "stars": 0,
+      "language": "JavaScript"
+     },
+     {
+      "name": "t0",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   },
+   "job": {
+    "comment_id": 7,
+    "company": "G",
+    "role": "Dev",
+    "location": null,
+    "remote": null,
+    "stack": [
+     "JS",
+     "javascript",
+     "React",
+     "ReactJS"
+    ],
+    "url": null,
+    "raw_text": "G",
+    "closed": false,
+    "closed_comment_id": null
+   },
+   "expected": {
+    "rank": 0,
+    "score": 30,
+    "job": {
+     "comment_id": 7,
+     "company": "G",
+     "role": "Dev",
+     "remote": null,
+     "url": null
+    },
+    "reasons": [
+     {
+      "kind": "language",
+      "text": "Your JavaScript work matches this job's stack",
+      "evidence": "JavaScript"
+     },
+     {
+      "kind": "repo",
+      "text": "Your repo l0 is written in JavaScript",
+      "evidence": "l0"
+     },
+     {
+      "kind": "topic",
+      "text": "Your repos use the topic react",
+      "evidence": "react"
+     }
+    ]
+   }
+  },
+  {
+   "name": "remote_bonus_and_suffix",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Python",
+      "size_kb": 1100
+     },
+     {
+      "name": "Go",
+      "size_kb": 999
+     }
+    ],
+    "topics": [
+     "cli",
+     "docker"
+    ],
+    "notable_repos": [
+     {
+      "name": "fastq",
+      "description": null,
+      "stars": 1,
+      "language": "Python"
+     },
+     {
+      "name": "l0",
+      "description": null,
+      "stars": 0,
+      "language": "Python"
+     },
+     {
+      "name": "l1",
+      "description": null,
+      "stars": 0,
+      "language": "Go"
+     },
+     {
+      "name": "t0",
+      "description": null,
+      "stars": 0,
+      "language": null
+     },
+     {
+      "name": "t1",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   },
+   "job": {
+    "comment_id": 8,
+    "company": "H",
+    "role": "Dev",
+    "location": null,
+    "remote": true,
+    "stack": [
+     "Python",
+     "Docker"
+    ],
+    "url": null,
+    "raw_text": "H",
+    "closed": false,
+    "closed_comment_id": null
+   },
+   "expected": {
+    "rank": 0,
+    "score": 35,
+    "job": {
+     "comment_id": 8,
+     "company": "H",
+     "role": "Dev",
+     "remote": true,
+     "url": null
+    },
+    "reasons": [
+     {
+      "kind": "language",
+      "text": "Your Python work matches this job's stack (the post says remote)",
+      "evidence": "Python"
+     },
+     {
+      "kind": "repo",
+      "text": "Your repo fastq is written in Python",
+      "evidence": "fastq"
+     },
+     {
+      "kind": "topic",
+      "text": "Your repos use the topic docker",
+      "evidence": "docker"
+     }
+    ]
+   }
+  },
+  {
+   "name": "remote_false_and_none_give_no_bonus",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Python",
+      "size_kb": 1100
+     },
+     {
+      "name": "Go",
+      "size_kb": 999
+     }
+    ],
+    "topics": [
+     "cli",
+     "docker"
+    ],
+    "notable_repos": [
+     {
+      "name": "fastq",
+      "description": null,
+      "stars": 1,
+      "language": "Python"
+     },
+     {
+      "name": "l0",
+      "description": null,
+      "stars": 0,
+      "language": "Python"
+     },
+     {
+      "name": "l1",
+      "description": null,
+      "stars": 0,
+      "language": "Go"
+     },
+     {
+      "name": "t0",
+      "description": null,
+      "stars": 0,
+      "language": null
+     },
+     {
+      "name": "t1",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   },
+   "job": {
+    "comment_id": 9,
+    "company": "I",
+    "role": "Dev",
+    "location": null,
+    "remote": false,
+    "stack": [
+     "Python"
+    ],
+    "url": null,
+    "raw_text": "I",
+    "closed": false,
+    "closed_comment_id": null
+   },
+   "expected": {
+    "rank": 0,
+    "score": 20,
+    "job": {
+     "comment_id": 9,
+     "company": "I",
+     "role": "Dev",
+     "remote": false,
+     "url": null
+    },
+    "reasons": [
+     {
+      "kind": "language",
+      "text": "Your Python work matches this job's stack",
+      "evidence": "Python"
+     },
+     {
+      "kind": "repo",
+      "text": "Your repo fastq is written in Python",
+      "evidence": "fastq"
+     }
+    ]
+   }
+  },
+  {
+   "name": "score_is_capped_at_100",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Python",
+      "size_kb": 1000
+     },
+     {
+      "name": "Go",
+      "size_kb": 999
+     },
+     {
+      "name": "Rust",
+      "size_kb": 998
+     },
+     {
+      "name": "Java",
+      "size_kb": 997
+     },
+     {
+      "name": "Kotlin",
+      "size_kb": 996
+     }
+    ],
+    "topics": [
+     "docker"
+    ],
+    "notable_repos": [
+     {
+      "name": "l0",
+      "description": null,
+      "stars": 0,
+      "language": "Python"
+     },
+     {
+      "name": "l1",
+      "description": null,
+      "stars": 0,
+      "language": "Go"
+     },
+     {
+      "name": "l2",
+      "description": null,
+      "stars": 0,
+      "language": "Rust"
+     },
+     {
+      "name": "l3",
+      "description": null,
+      "stars": 0,
+      "language": "Java"
+     },
+     {
+      "name": "l4",
+      "description": null,
+      "stars": 0,
+      "language": "Kotlin"
+     }
+    ]
+   },
+   "job": {
+    "comment_id": 10,
+    "company": "J",
+    "role": "Dev",
+    "location": null,
+    "remote": true,
+    "stack": [
+     "Python",
+     "Go",
+     "Rust",
+     "Java",
+     "Kotlin",
+     "Docker"
+    ],
+    "url": null,
+    "raw_text": "J",
+    "closed": false,
+    "closed_comment_id": null
+   },
+   "expected": {
+    "rank": 0,
+    "score": 100,
+    "job": {
+     "comment_id": 10,
+     "company": "J",
+     "role": "Dev",
+     "remote": true,
+     "url": null
+    },
+    "reasons": [
+     {
+      "kind": "language",
+      "text": "Your Python work matches this job's stack (the post says remote)",
+      "evidence": "Python"
+     },
+     {
+      "kind": "language",
+      "text": "Your Go work matches this job's stack",
+      "evidence": "Go"
+     },
+     {
+      "kind": "language",
+      "text": "Your Rust work matches this job's stack",
+      "evidence": "Rust"
+     },
+     {
+      "kind": "language",
+      "text": "Your Java work matches this job's stack",
+      "evidence": "Java"
+     },
+     {
+      "kind": "language",
+      "text": "Your Kotlin work matches this job's stack",
+      "evidence": "Kotlin"
+     },
+     {
+      "kind": "repo",
+      "text": "Your repo l0 is written in Python",
+      "evidence": "l0"
+     },
+     {
+      "kind": "topic",
+      "text": "Your repos use the topic docker",
+      "evidence": "docker"
+     }
+    ]
+   }
+  },
+  {
+   "name": "a_matched_language_without_a_notable_repo_has_no_repo_reason",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Python",
+      "size_kb": 600
+     },
+     {
+      "name": "Rust",
+      "size_kb": 100
+     }
+    ],
+    "topics": [],
+    "notable_repos": [
+     {
+      "name": "p0",
+      "description": null,
+      "stars": 10,
+      "language": "Python"
+     },
+     {
+      "name": "p1",
+      "description": null,
+      "stars": 9,
+      "language": "Python"
+     },
+     {
+      "name": "p2",
+      "description": null,
+      "stars": 8,
+      "language": "Python"
+     },
+     {
+      "name": "p3",
+      "description": null,
+      "stars": 7,
+      "language": "Python"
+     },
+     {
+      "name": "p4",
+      "description": null,
+      "stars": 6,
+      "language": "Python"
+     }
+    ]
+   },
+   "job": {
+    "comment_id": 11,
+    "company": "K",
+    "role": "Dev",
+    "location": null,
+    "remote": null,
+    "stack": [
+     "Rust"
+    ],
+    "url": null,
+    "raw_text": "K",
+    "closed": false,
+    "closed_comment_id": null
+   },
+   "expected": {
+    "rank": 0,
+    "score": 20,
+    "job": {
+     "comment_id": 11,
+     "company": "K",
+     "role": "Dev",
+     "remote": null,
+     "url": null
+    },
+    "reasons": [
+     {
+      "kind": "language",
+      "text": "Your Rust work matches this job's stack",
+      "evidence": "Rust"
+     }
+    ]
+   }
+  },
+  {
+   "name": "blank_terms_are_ignored",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Python",
+      "size_kb": 1100
+     },
+     {
+      "name": "Go",
+      "size_kb": 999
+     }
+    ],
+    "topics": [
+     "cli",
+     "docker"
+    ],
+    "notable_repos": [
+     {
+      "name": "fastq",
+      "description": null,
+      "stars": 1,
+      "language": "Python"
+     },
+     {
+      "name": "l0",
+      "description": null,
+      "stars": 0,
+      "language": "Python"
+     },
+     {
+      "name": "l1",
+      "description": null,
+      "stars": 0,
+      "language": "Go"
+     },
+     {
+      "name": "t0",
+      "description": null,
+      "stars": 0,
+      "language": null
+     },
+     {
+      "name": "t1",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   },
+   "job": {
+    "comment_id": 12,
+    "company": "L",
+    "role": "Dev",
+    "location": null,
+    "remote": null,
+    "stack": [
+     "",
+     "!!!",
+     "Python"
+    ],
+    "url": null,
+    "raw_text": "L",
+    "closed": false,
+    "closed_comment_id": null
+   },
+   "expected": {
+    "rank": 0,
+    "score": 20,
+    "job": {
+     "comment_id": 12,
+     "company": "L",
+     "role": "Dev",
+     "remote": null,
+     "url": null
+    },
+    "reasons": [
+     {
+      "kind": "language",
+      "text": "Your Python work matches this job's stack",
+      "evidence": "Python"
+     },
+     {
+      "kind": "repo",
+      "text": "Your repo fastq is written in Python",
+      "evidence": "fastq"
+     }
+    ]
+   }
+  },
+  {
+   "name": "two_languages_two_reasons",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Python",
+      "size_kb": 1100
+     },
+     {
+      "name": "Go",
+      "size_kb": 999
+     }
+    ],
+    "topics": [
+     "cli",
+     "docker"
+    ],
+    "notable_repos": [
+     {
+      "name": "fastq",
+      "description": null,
+      "stars": 1,
+      "language": "Python"
+     },
+     {
+      "name": "l0",
+      "description": null,
+      "stars": 0,
+      "language": "Python"
+     },
+     {
+      "name": "l1",
+      "description": null,
+      "stars": 0,
+      "language": "Go"
+     },
+     {
+      "name": "t0",
+      "description": null,
+      "stars": 0,
+      "language": null
+     },
+     {
+      "name": "t1",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   },
+   "job": {
+    "comment_id": 13,
+    "company": "M",
+    "role": "Dev",
+    "location": null,
+    "remote": null,
+    "stack": [
+     "Go",
+     "Python"
+    ],
+    "url": null,
+    "raw_text": "M",
+    "closed": false,
+    "closed_comment_id": null
+   },
+   "expected": {
+    "rank": 0,
+    "score": 40,
+    "job": {
+     "comment_id": 13,
+     "company": "M",
+     "role": "Dev",
+     "remote": null,
+     "url": null
+    },
+    "reasons": [
+     {
+      "kind": "language",
+      "text": "Your Go work matches this job's stack",
+      "evidence": "Go"
+     },
+     {
+      "kind": "language",
+      "text": "Your Python work matches this job's stack",
+      "evidence": "Python"
+     },
+     {
+      "kind": "repo",
+      "text": "Your repo fastq is written in Python",
+      "evidence": "fastq"
+     }
+    ]
+   }
+  }
+ ],
+ "top_cases": [
+  {
+   "name": "empty_jobs",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Python",
+      "size_kb": 1100
+     },
+     {
+      "name": "Go",
+      "size_kb": 999
+     }
+    ],
+    "topics": [
+     "docker"
+    ],
+    "notable_repos": [
+     {
+      "name": "fastq",
+      "description": null,
+      "stars": 1,
+      "language": "Python"
+     },
+     {
+      "name": "l0",
+      "description": null,
+      "stars": 0,
+      "language": "Python"
+     },
+     {
+      "name": "l1",
+      "description": null,
+      "stars": 0,
+      "language": "Go"
+     },
+     {
+      "name": "t0",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   },
+   "jobs": [],
+   "limit": 3,
+   "expected": []
+  },
+  {
+   "name": "no_strong_matches",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Python",
+      "size_kb": 1100
+     },
+     {
+      "name": "Go",
+      "size_kb": 999
+     }
+    ],
+    "topics": [
+     "docker"
+    ],
+    "notable_repos": [
+     {
+      "name": "fastq",
+      "description": null,
+      "stars": 1,
+      "language": "Python"
+     },
+     {
+      "name": "l0",
+      "description": null,
+      "stars": 0,
+      "language": "Python"
+     },
+     {
+      "name": "l1",
+      "description": null,
+      "stars": 0,
+      "language": "Go"
+     },
+     {
+      "name": "t0",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   },
+   "jobs": [
+    {
+     "comment_id": 1,
+     "company": "A",
+     "role": "Dev",
+     "location": null,
+     "remote": null,
+     "stack": [
+      "COBOL"
+     ],
+     "url": null,
+     "raw_text": "A",
+     "closed": false,
+     "closed_comment_id": null
+    },
+    {
+     "comment_id": 2,
+     "company": "B",
+     "role": "Dev",
+     "location": null,
+     "remote": null,
+     "stack": [],
+     "url": null,
+     "raw_text": "B",
+     "closed": false,
+     "closed_comment_id": null
+    }
+   ],
+   "limit": 3,
+   "expected": []
+  },
+  {
+   "name": "best_first_and_ranks",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Python",
+      "size_kb": 1100
+     },
+     {
+      "name": "Go",
+      "size_kb": 999
+     }
+    ],
+    "topics": [
+     "docker"
+    ],
+    "notable_repos": [
+     {
+      "name": "fastq",
+      "description": null,
+      "stars": 1,
+      "language": "Python"
+     },
+     {
+      "name": "l0",
+      "description": null,
+      "stars": 0,
+      "language": "Python"
+     },
+     {
+      "name": "l1",
+      "description": null,
+      "stars": 0,
+      "language": "Go"
+     },
+     {
+      "name": "t0",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   },
+   "jobs": [
+    {
+     "comment_id": 1,
+     "company": "Low",
+     "role": "Dev",
+     "location": null,
+     "remote": null,
+     "stack": [
+      "Docker"
+     ],
+     "url": null,
+     "raw_text": "Low",
+     "closed": false,
+     "closed_comment_id": null
+    },
+    {
+     "comment_id": 2,
+     "company": "High",
+     "role": "Dev",
+     "location": null,
+     "remote": null,
+     "stack": [
+      "Python",
+      "Go"
+     ],
+     "url": null,
+     "raw_text": "High",
+     "closed": false,
+     "closed_comment_id": null
+    },
+    {
+     "comment_id": 3,
+     "company": "Mid",
+     "role": "Dev",
+     "location": null,
+     "remote": null,
+     "stack": [
+      "Python"
+     ],
+     "url": null,
+     "raw_text": "Mid",
+     "closed": false,
+     "closed_comment_id": null
+    }
+   ],
+   "limit": 3,
+   "expected": [
+    {
+     "rank": 1,
+     "score": 40,
+     "job": {
+      "comment_id": 2,
+      "company": "High",
+      "role": "Dev",
+      "remote": null,
+      "url": null
+     },
+     "reasons": [
+      {
+       "kind": "language",
+       "text": "Your Python work matches this job's stack",
+       "evidence": "Python"
+      },
+      {
+       "kind": "language",
+       "text": "Your Go work matches this job's stack",
+       "evidence": "Go"
+      },
+      {
+       "kind": "repo",
+       "text": "Your repo fastq is written in Python",
+       "evidence": "fastq"
+      }
+     ]
+    },
+    {
+     "rank": 2,
+     "score": 20,
+     "job": {
+      "comment_id": 3,
+      "company": "Mid",
+      "role": "Dev",
+      "remote": null,
+      "url": null
+     },
+     "reasons": [
+      {
+       "kind": "language",
+       "text": "Your Python work matches this job's stack",
+       "evidence": "Python"
+      },
+      {
+       "kind": "repo",
+       "text": "Your repo fastq is written in Python",
+       "evidence": "fastq"
+      }
+     ]
+    },
+    {
+     "rank": 3,
+     "score": 10,
+     "job": {
+      "comment_id": 1,
+      "company": "Low",
+      "role": "Dev",
+      "remote": null,
+      "url": null
+     },
+     "reasons": [
+      {
+       "kind": "topic",
+       "text": "Your repos use the topic docker",
+       "evidence": "docker"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "ties_go_to_the_newer_post",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Python",
+      "size_kb": 1100
+     },
+     {
+      "name": "Go",
+      "size_kb": 999
+     }
+    ],
+    "topics": [
+     "docker"
+    ],
+    "notable_repos": [
+     {
+      "name": "fastq",
+      "description": null,
+      "stars": 1,
+      "language": "Python"
+     },
+     {
+      "name": "l0",
+      "description": null,
+      "stars": 0,
+      "language": "Python"
+     },
+     {
+      "name": "l1",
+      "description": null,
+      "stars": 0,
+      "language": "Go"
+     },
+     {
+      "name": "t0",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   },
+   "jobs": [
+    {
+     "comment_id": 10,
+     "company": "Old",
+     "role": "Dev",
+     "location": null,
+     "remote": null,
+     "stack": [
+      "Python"
+     ],
+     "url": null,
+     "raw_text": "Old",
+     "closed": false,
+     "closed_comment_id": null
+    },
+    {
+     "comment_id": 30,
+     "company": "New",
+     "role": "Dev",
+     "location": null,
+     "remote": null,
+     "stack": [
+      "Python"
+     ],
+     "url": null,
+     "raw_text": "New",
+     "closed": false,
+     "closed_comment_id": null
+    },
+    {
+     "comment_id": 20,
+     "company": "Mid",
+     "role": "Dev",
+     "location": null,
+     "remote": null,
+     "stack": [
+      "Python"
+     ],
+     "url": null,
+     "raw_text": "Mid",
+     "closed": false,
+     "closed_comment_id": null
+    }
+   ],
+   "limit": 3,
+   "expected": [
+    {
+     "rank": 1,
+     "score": 20,
+     "job": {
+      "comment_id": 30,
+      "company": "New",
+      "role": "Dev",
+      "remote": null,
+      "url": null
+     },
+     "reasons": [
+      {
+       "kind": "language",
+       "text": "Your Python work matches this job's stack",
+       "evidence": "Python"
+      },
+      {
+       "kind": "repo",
+       "text": "Your repo fastq is written in Python",
+       "evidence": "fastq"
+      }
+     ]
+    },
+    {
+     "rank": 2,
+     "score": 20,
+     "job": {
+      "comment_id": 20,
+      "company": "Mid",
+      "role": "Dev",
+      "remote": null,
+      "url": null
+     },
+     "reasons": [
+      {
+       "kind": "language",
+       "text": "Your Python work matches this job's stack",
+       "evidence": "Python"
+      },
+      {
+       "kind": "repo",
+       "text": "Your repo fastq is written in Python",
+       "evidence": "fastq"
+      }
+     ]
+    },
+    {
+     "rank": 3,
+     "score": 20,
+     "job": {
+      "comment_id": 10,
+      "company": "Old",
+      "role": "Dev",
+      "remote": null,
+      "url": null
+     },
+     "reasons": [
+      {
+       "kind": "language",
+       "text": "Your Python work matches this job's stack",
+       "evidence": "Python"
+      },
+      {
+       "kind": "repo",
+       "text": "Your repo fastq is written in Python",
+       "evidence": "fastq"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "limit_cuts_the_list",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Python",
+      "size_kb": 1100
+     },
+     {
+      "name": "Go",
+      "size_kb": 999
+     }
+    ],
+    "topics": [
+     "docker"
+    ],
+    "notable_repos": [
+     {
+      "name": "fastq",
+      "description": null,
+      "stars": 1,
+      "language": "Python"
+     },
+     {
+      "name": "l0",
+      "description": null,
+      "stars": 0,
+      "language": "Python"
+     },
+     {
+      "name": "l1",
+      "description": null,
+      "stars": 0,
+      "language": "Go"
+     },
+     {
+      "name": "t0",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   },
+   "jobs": [
+    {
+     "comment_id": 1,
+     "company": "Co1",
+     "role": "Dev",
+     "location": null,
+     "remote": null,
+     "stack": [
+      "Python"
+     ],
+     "url": null,
+     "raw_text": "Co1",
+     "closed": false,
+     "closed_comment_id": null
+    },
+    {
+     "comment_id": 2,
+     "company": "Co2",
+     "role": "Dev",
+     "location": null,
+     "remote": null,
+     "stack": [
+      "Python"
+     ],
+     "url": null,
+     "raw_text": "Co2",
+     "closed": false,
+     "closed_comment_id": null
+    },
+    {
+     "comment_id": 3,
+     "company": "Co3",
+     "role": "Dev",
+     "location": null,
+     "remote": null,
+     "stack": [
+      "Python"
+     ],
+     "url": null,
+     "raw_text": "Co3",
+     "closed": false,
+     "closed_comment_id": null
+    },
+    {
+     "comment_id": 4,
+     "company": "Co4",
+     "role": "Dev",
+     "location": null,
+     "remote": null,
+     "stack": [
+      "Python"
+     ],
+     "url": null,
+     "raw_text": "Co4",
+     "closed": false,
+     "closed_comment_id": null
+    },
+    {
+     "comment_id": 5,
+     "company": "Co5",
+     "role": "Dev",
+     "location": null,
+     "remote": null,
+     "stack": [
+      "Python"
+     ],
+     "url": null,
+     "raw_text": "Co5",
+     "closed": false,
+     "closed_comment_id": null
+    },
+    {
+     "comment_id": 6,
+     "company": "Co6",
+     "role": "Dev",
+     "location": null,
+     "remote": null,
+     "stack": [
+      "Python"
+     ],
+     "url": null,
+     "raw_text": "Co6",
+     "closed": false,
+     "closed_comment_id": null
+    },
+    {
+     "comment_id": 7,
+     "company": "Co7",
+     "role": "Dev",
+     "location": null,
+     "remote": null,
+     "stack": [
+      "Python"
+     ],
+     "url": null,
+     "raw_text": "Co7",
+     "closed": false,
+     "closed_comment_id": null
+    }
+   ],
+   "limit": 3,
+   "expected": [
+    {
+     "rank": 1,
+     "score": 20,
+     "job": {
+      "comment_id": 7,
+      "company": "Co7",
+      "role": "Dev",
+      "remote": null,
+      "url": null
+     },
+     "reasons": [
+      {
+       "kind": "language",
+       "text": "Your Python work matches this job's stack",
+       "evidence": "Python"
+      },
+      {
+       "kind": "repo",
+       "text": "Your repo fastq is written in Python",
+       "evidence": "fastq"
+      }
+     ]
+    },
+    {
+     "rank": 2,
+     "score": 20,
+     "job": {
+      "comment_id": 6,
+      "company": "Co6",
+      "role": "Dev",
+      "remote": null,
+      "url": null
+     },
+     "reasons": [
+      {
+       "kind": "language",
+       "text": "Your Python work matches this job's stack",
+       "evidence": "Python"
+      },
+      {
+       "kind": "repo",
+       "text": "Your repo fastq is written in Python",
+       "evidence": "fastq"
+      }
+     ]
+    },
+    {
+     "rank": 3,
+     "score": 20,
+     "job": {
+      "comment_id": 5,
+      "company": "Co5",
+      "role": "Dev",
+      "remote": null,
+      "url": null
+     },
+     "reasons": [
+      {
+       "kind": "language",
+       "text": "Your Python work matches this job's stack",
+       "evidence": "Python"
+      },
+      {
+       "kind": "repo",
+       "text": "Your repo fastq is written in Python",
+       "evidence": "fastq"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "limit_larger_than_matches",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Python",
+      "size_kb": 1100
+     },
+     {
+      "name": "Go",
+      "size_kb": 999
+     }
+    ],
+    "topics": [
+     "docker"
+    ],
+    "notable_repos": [
+     {
+      "name": "fastq",
+      "description": null,
+      "stars": 1,
+      "language": "Python"
+     },
+     {
+      "name": "l0",
+      "description": null,
+      "stars": 0,
+      "language": "Python"
+     },
+     {
+      "name": "l1",
+      "description": null,
+      "stars": 0,
+      "language": "Go"
+     },
+     {
+      "name": "t0",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   },
+   "jobs": [
+    {
+     "comment_id": 1,
+     "company": "A",
+     "role": "Dev",
+     "location": null,
+     "remote": null,
+     "stack": [
+      "Python"
+     ],
+     "url": null,
+     "raw_text": "A",
+     "closed": false,
+     "closed_comment_id": null
+    },
+    {
+     "comment_id": 2,
+     "company": "B",
+     "role": "Dev",
+     "location": null,
+     "remote": null,
+     "stack": [
+      "COBOL"
+     ],
+     "url": null,
+     "raw_text": "B",
+     "closed": false,
+     "closed_comment_id": null
+    }
+   ],
+   "limit": 10,
+   "expected": [
+    {
+     "rank": 1,
+     "score": 20,
+     "job": {
+      "comment_id": 1,
+      "company": "A",
+      "role": "Dev",
+      "remote": null,
+      "url": null
+     },
+     "reasons": [
+      {
+       "kind": "language",
+       "text": "Your Python work matches this job's stack",
+       "evidence": "Python"
+      },
+      {
+       "kind": "repo",
+       "text": "Your repo fastq is written in Python",
+       "evidence": "fastq"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "limit_zero",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Python",
+      "size_kb": 1100
+     },
+     {
+      "name": "Go",
+      "size_kb": 999
+     }
+    ],
+    "topics": [
+     "docker"
+    ],
+    "notable_repos": [
+     {
+      "name": "fastq",
+      "description": null,
+      "stars": 1,
+      "language": "Python"
+     },
+     {
+      "name": "l0",
+      "description": null,
+      "stars": 0,
+      "language": "Python"
+     },
+     {
+      "name": "l1",
+      "description": null,
+      "stars": 0,
+      "language": "Go"
+     },
+     {
+      "name": "t0",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   },
+   "jobs": [
+    {
+     "comment_id": 1,
+     "company": "A",
+     "role": "Dev",
+     "location": null,
+     "remote": null,
+     "stack": [
+      "Python"
+     ],
+     "url": null,
+     "raw_text": "A",
+     "closed": false,
+     "closed_comment_id": null
+    }
+   ],
+   "limit": 0,
+   "expected": []
+  },
+  {
+   "name": "remote_changes_the_order",
+   "profile": {
+    "username": "octo",
+    "languages": [
+     {
+      "name": "Python",
+      "size_kb": 1100
+     },
+     {
+      "name": "Go",
+      "size_kb": 999
+     }
+    ],
+    "topics": [
+     "docker"
+    ],
+    "notable_repos": [
+     {
+      "name": "fastq",
+      "description": null,
+      "stars": 1,
+      "language": "Python"
+     },
+     {
+      "name": "l0",
+      "description": null,
+      "stars": 0,
+      "language": "Python"
+     },
+     {
+      "name": "l1",
+      "description": null,
+      "stars": 0,
+      "language": "Go"
+     },
+     {
+      "name": "t0",
+      "description": null,
+      "stars": 0,
+      "language": null
+     }
+    ]
+   },
+   "jobs": [
+    {
+     "comment_id": 5,
+     "company": "Onsite",
+     "role": "Dev",
+     "location": null,
+     "remote": false,
+     "stack": [
+      "Python"
+     ],
+     "url": null,
+     "raw_text": "Onsite",
+     "closed": false,
+     "closed_comment_id": null
+    },
+    {
+     "comment_id": 4,
+     "company": "Remote",
+     "role": "Dev",
+     "location": null,
+     "remote": true,
+     "stack": [
+      "Python"
+     ],
+     "url": null,
+     "raw_text": "Remote",
+     "closed": false,
+     "closed_comment_id": null
+    }
+   ],
+   "limit": 3,
+   "expected": [
+    {
+     "rank": 1,
+     "score": 25,
+     "job": {
+      "comment_id": 4,
+      "company": "Remote",
+      "role": "Dev",
+      "remote": true,
+      "url": null
+     },
+     "reasons": [
+      {
+       "kind": "language",
+       "text": "Your Python work matches this job's stack (the post says remote)",
+       "evidence": "Python"
+      },
+      {
+       "kind": "repo",
+       "text": "Your repo fastq is written in Python",
+       "evidence": "fastq"
+      }
+     ]
+    },
+    {
+     "rank": 2,
+     "score": 20,
+     "job": {
+      "comment_id": 5,
+      "company": "Onsite",
+      "role": "Dev",
+      "remote": false,
+      "url": null
+     },
+     "reasons": [
+      {
+       "kind": "language",
+       "text": "Your Python work matches this job's stack",
+       "evidence": "Python"
+      },
+      {
+       "kind": "repo",
+       "text": "Your repo fastq is written in Python",
+       "evidence": "fastq"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}
