@@ -15,15 +15,16 @@ site/
     company.html         without ?job=: directory of every company with a teaser and a search box;
                          with ?job=<comment_id>: that company's hiring post, Show HN posts, pulse (issue 41)
     journey.html         placeholder: coming soon (issue 31)
-    check.html           Check yours: load the radar.json that `hnradar radar USER --out radar.json` made on your own computer and see it (issue 31)
+    check.html           Check yours: type a GitHub username to see the fit in the browser, or load the radar.json that `hnradar radar USER --out radar.json` made on your own computer (issues 31, 56)
     hn.css, hn.js        shared styles and helpers (text cleaning, safe links, designed states); hn.js holds PATHS
     hn-fit.js            profile and match logic for the browser: a port of fingerprint.py and match.py (no DOM, no network); the Python code is the reference (issue 56)
+    hn-github.js         the one request the page makes for a person: their public repos from api.github.com (no storage; fetch is passed in, so Node tests drive every failure)
     data/jobs.json       dev copy of ../../data/jobs.json (git-ignored, refreshed by the sync script)
     images/, videos/     pictures and videos used by the pages (committed; video names start with careers-)
     pagefind/            careers-only search index, built by tools/build_careers_index.py (git-ignored)
   tools/                 build_careers_index.py: builds that index (tested in tests/test_careers_index.py)
                          make_fit_golden.py: makes the shared test cases for hn-fit.js from the Python reference
-  tests/                 hn-fit.test.js: Node tests (node --test site/tests/hn-fit.test.js); also run by uv run pytest when node is installed
+  tests/                 hn-fit.test.js, hn-github.test.js: Node tests (node --test site/tests/*.test.js); also run by uv run pytest when node is installed
   includes/, fonts/      dev copies of the live site's design system, nav, footer and fonts (git-ignored)
   favicon.svg, site.webmanifest, images/favicon-*.png   dev copies of the site's icons (git-ignored)
   _private/              local-only notes, templates, prompts and scripts (git-ignored; never committed)
@@ -48,7 +49,7 @@ On the live site these are shared folders at the site root, so the move changes 
 | Kind | Dev (here) | Live site |
 |---|---|---|
 | Pages | `careers/` | `careers/` |
-| `hn.css`, `hn.js` | `careers/` | `includes/rw-hn.css`, `includes/rw-hn.js` |
+| `hn.css`, `hn.js`, `hn-fit.js`, `hn-github.js` | `careers/` | `includes/rw-hn.css`, `includes/rw-hn.js`, `includes/rw-hn-fit.js`, `includes/rw-hn-github.js` |
 | Data (JSON) | `careers/data/` | `data/` |
 | Pictures | `careers/images/` | `images/careers/` |
 | Videos | `careers/videos/careers-<name>.mp4` | `images/videos/careers-<name>.mp4` |
@@ -102,7 +103,7 @@ uv run python site/tools/build_careers_index.py     # after every refresh of car
 - `publish-to-site.ps1` refuses to publish an index that is older than `careers/data/jobs.json`.
 
 ### Check yours: how to try it without committing anything
-`check.html` shows a result file made by `hnradar radar`. The file is read with `FileReader` in the browser tab: no `fetch`, no storage, no cookie, no request carrying it. The page deliberately does **not** load `includes/analytics.js` (Microsoft Clarity records what is on screen). Every text from the file is written with `textContent`; a draft is shown only if its claim line cites a comment; a point about what users said with no valid comment id is dropped with a note; a `failed` result shows only the failed step.
+`check.html` has two inputs. **A username**: the browser asks `api.github.com` for that user's public repos (`hn-github.js`, no cookies, no referrer, nothing stored), matches them with `jobs.json` (`hn-fit.js`) and shows the fit only: the page never knows about Show HN or drafts, and says so on each card. The requests the page makes are the static files and that one GitHub call; GitHub allows 60 requests an hour per network address, and the page says so when the limit is used up. **A result file** made by `hnradar radar`: read with `FileReader` in the browser tab, no request carries it. The page deliberately does **not** load `includes/analytics.js` (Microsoft Clarity records what is on screen). Every text from the file is written with `textContent`; a draft is shown only if its claim line cites a comment; a point about what users said with no valid comment id is dropped with a note; a `failed` result shows only the failed step.
 
 ```powershell
 powershell -File site/_private/sync-dev-assets.ps1        # once: dev copies of the site's includes and fonts
@@ -152,8 +153,8 @@ Open http://localhost:8000/careers/. Use a server, not a `file://` URL, because 
 
 Do this when the pages are done, in a separate branch of the site project, and review that pull request there. The site project deploys from its **`gh-pages`** branch (there is no `main`): branch from it and open the pull request against it.
 
-1. Run the sync script, then `powershell -File site/_private/publish-to-site.ps1` (a dry run that lists the files) and again with `-Apply`. It copies the pages to `careers/` (with the two tags rewritten), `hn.css` and `hn.js` to `includes/rw-hn.css` and `includes/rw-hn.js`, `careers/data/*` to the site's `data/`, `careers/images/*` to `images/careers/` and `careers/videos/*` to `images/videos/` and the search index `careers/pagefind/` to the same place (replacing it), and rewrites the `PATHS` line in the copied `rw-hn.js` to those places. Nothing else is copied: not the dev copies of includes and fonts, not `data/profiles/`. It also lists leftovers from the earlier layout (`careers/data/`, `careers/hn.css`, `careers/hn.js` in the site project) to delete there.
-   By hand instead: copy the pages; copy `hn.css` and `hn.js` to `includes/rw-hn.css` and `includes/rw-hn.js` and change the two tags in each page; move the data, pictures and videos as in the table above; set `PATHS` in `rw-hn.js` to `{ data: '../data/', images: '../images/careers/', videos: '../images/videos/', search: './pagefind/' }`.
+1. Run the sync script, then `powershell -File site/_private/publish-to-site.ps1` (a dry run that lists the files) and again with `-Apply`. It copies the pages to `careers/` (with the two tags rewritten), `hn.css`, `hn.js`, `hn-fit.js` and `hn-github.js` to `includes/rw-hn.css`, `includes/rw-hn.js`, `includes/rw-hn-fit.js` and `includes/rw-hn-github.js`, `careers/data/*` to the site's `data/`, `careers/images/*` to `images/careers/` and `careers/videos/*` to `images/videos/` and the search index `careers/pagefind/` to the same place (replacing it), and rewrites the `PATHS` line in the copied `rw-hn.js` to those places. Nothing else is copied: not the dev copies of includes and fonts, not `data/profiles/`. It also lists leftovers from the earlier layout (`careers/data/`, `careers/hn.css`, `careers/hn.js` in the site project) to delete there.
+   By hand instead: copy the pages; copy `hn.css`, `hn.js`, `hn-fit.js` and `hn-github.js` to `includes/rw-hn.css`, `includes/rw-hn.js`, `includes/rw-hn-fit.js` and `includes/rw-hn-github.js` and change the `./hn*.css` and `./hn*.js` tags in each page that uses them (`check.html` loads all four scripts; every other page loads `hn.css` and `hn.js`); move the data, pictures and videos as in the table above; set `PATHS` in `rw-hn.js` to `{ data: '../data/', images: '../images/careers/', videos: '../images/videos/', search: './pagefind/' }`.
 2. Registering the pages (nav entry, `?v=` bump, `sitemap.xml`, `llms.txt`) is done by the site's own job: do not do it by hand here. The site's `pagefind.yml` and `pagefind/` are not touched either: careers has its own index (see above).
 3. Do not `git add -A` in the site project (it has unrelated daily changes); add explicit paths.
 4. Open `/careers/` locally and check the nav, footer, dark mode, search and the JSON paths.

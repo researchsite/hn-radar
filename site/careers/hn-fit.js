@@ -145,7 +145,21 @@
     return scored.slice(0, n).map(function (m, i) { m.rank = i + 1; return m; });
   }
 
+  // The jobs file is data the page trusts (it holds openings only, see the header). An empty list or a record that is
+  // not a job means the file is wrong, and "no matches" must not be shown for it: say so instead (site rule S3).
+  function checkJobs(jobs) {
+    if (!Array.isArray(jobs)) throw new TypeError('the list of jobs is not a list');
+    if (!jobs.length) throw new TypeError('the list of jobs is empty');
+    jobs.forEach(function (j, i) {
+      if (!isObject(j) || typeof j.comment_id !== 'number' || !isFinite(j.comment_id) || Math.floor(j.comment_id) !== j.comment_id || j.comment_id <= 0 ||
+          typeof j.company !== 'string' || !Array.isArray(j.stack) || !j.stack.every(function (t) { return typeof t === 'string'; })) {
+        throw new TypeError('record ' + i + ' of the list of jobs is not a job');
+      }
+    });
+    return jobs;
+  }
+
   return {
-    TOP_MATCHES: TOP_MATCHES, norm: norm, buildProfile: buildProfile, scoreJob: scoreJob, topMatches: topMatches
+    TOP_MATCHES: TOP_MATCHES, norm: norm, buildProfile: buildProfile, scoreJob: scoreJob, topMatches: topMatches, checkJobs: checkJobs
   };
 });

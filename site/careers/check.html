@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Check yours | HN Radar | RawWeights</title>
-  <meta name="description" content="Load the result file you made on your own computer and see your best-fit companies, what their users said and a short draft note. Nothing is uploaded.">
+  <meta name="description" content="Type your GitHub username to see which companies in this month's Who is hiring thread fit your public repositories, or load the result file you made on your own computer. Nothing is saved or uploaded.">
   <meta name="author" content="RawWeights">
   <meta name="robots" content="noindex">
   <link rel="canonical" href="https://rawweights.com/careers/check.html">
@@ -23,17 +23,29 @@
 <div id="content" class="rw-hn-wrap">
   <div id="hn-pages"></div>
   <h1>Check yours</h1>
-  <p class="rw-hn-lead">See which companies in this month's "Who is hiring?" thread fit your public GitHub work, what their users said, and a short draft note. The result is made on your own computer; this page only shows it.</p>
+  <p class="rw-hn-lead">See which companies in this month's "Who is hiring?" thread fit your public GitHub work. Type your username to see the fit here, in your browser. For what their users said on Hacker News and a short draft note, make a result file on your own computer with the command line and load it below.</p>
+
+  <section class="rw-hn-panel" aria-labelledby="ck-user-h">
+    <h2 id="ck-user-h">Find matches from your GitHub username</h2>
+    <form id="ck-form" novalidate>
+      <div class="rw-hn-field">
+        <label for="ck-user">GitHub username</label>
+        <input type="text" id="ck-user" maxlength="39" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="octocat">
+      </div>
+      <p class="rw-hn-actions"><button type="submit" class="rw-hn-btn rw-hn-btn--solid" id="ck-run">Find my matches</button></p>
+    </form>
+    <p class="rw-hn-note"><strong>Privacy:</strong> your browser asks GitHub for your public repositories and matches them with this month's jobs on this page. Only GitHub receives the username, the way any site you visit receives your network address; this site only serves the page and the jobs file. Nothing is saved in this browser, no cookie is set and no analytics script runs here. GitHub allows 60 requests an hour from one network address, and 100 repositories per request. Only the fit is worked out here: Show HN threads, what users said and a draft need the command line below.</p>
+  </section>
 
   <section class="rw-hn-panel" aria-labelledby="ck-how">
-    <h2 id="ck-how">1. Make your result file</h2>
+    <h2 id="ck-how">With the command line, step 1: make your result file</h2>
     <p class="rw-hn-small">Install HN Radar, then run this with your own GitHub username. It reads only your public repositories and writes one file. Nothing is sent anywhere, and the draft is never sent.</p>
     <pre class="rw-hn-code" tabindex="0">uv run hnradar radar YOUR-GITHUB-USERNAME --out radar.json</pre>
     <p class="rw-hn-note"><strong>Privacy:</strong> the file you load below is read inside this browser tab. It is not uploaded, not saved in this browser and not sent in any request. Close the tab or use "Clear" and it is gone. Keep the file private: it is about you.</p>
   </section>
 
   <section class="rw-hn-panel" aria-labelledby="ck-load">
-    <h2 id="ck-load">2. Load it</h2>
+    <h2 id="ck-load">With the command line, step 2: load it</h2>
     <div id="ck-drop" class="rw-hn-drop">
       <p><strong>Drop radar.json here</strong> or</p>
       <p><input type="file" id="ck-file" accept=".json,application/json" class="rw-hn-visually-hidden">
@@ -232,10 +244,13 @@
 <script src="../includes/rw-footer.js?v=20261107"></script>
 
 <script src="./hn.js"></script>
+<script src="./hn-fit.js"></script>
+<script src="./hn-github.js"></script>
 <script>
 (function () {
   'use strict';
-  // The file is read with FileReader and rendered. There is no fetch, no storage and no cookie: the result never leaves memory.
+  // A result file is read with FileReader and rendered; a username is sent to the public GitHub API by hn-github.js and nowhere
+  // else (site rule S2). Nothing is stored and no cookie is set: the result never leaves memory.
   var H = window.HN, el = H.el, clean = H.clean, cleanBlock = H.cleanBlock;
   var $ = function (id) { return document.getElementById(id); };
   document.getElementById('hn-pages').appendChild(H.pages('check.html'));
@@ -295,6 +310,8 @@
     return { node: box };
   }
 
+  var browserCards = new WeakSet();  // companies this page made from the visitor's own GitHub data: never from a file
+
   function renderCompany(c) {
     var li = el('li', { className: 'rw-hn-item' });
     var name = str(c.company) || 'Company not stated';
@@ -311,6 +328,10 @@
       H.extLink(H.hnItemUrl(c.job_comment_id), 'Hiring post on HN', 'Hiring post from ' + name)];
     var ju = H.safeUrl(c.job_url); if (ju) acts.push(H.extLink(ju.href, 'Job link (' + ju.host + ')', 'Job link from ' + name));
     li.appendChild(el('p', { className: 'rw-hn-actions' }, acts));
+    if (browserCards.has(c)) {  // only the fit exists here; say so instead of showing "no Show HN" or "no draft" as findings
+      li.appendChild(el('p', { className: 'rw-hn-small rw-hn-muted' }, 'Only the fit is worked out in the browser. Whether a Show HN thread links to this company, what its users said and a draft come from the command line (hnradar radar).'));
+      return li;
+    }
 
     var sh = c.show_hn;
     if (sh && typeof sh === 'object' && int(sh.story_id) && H.hnItemUrl(sh.story_id)) {
@@ -356,6 +377,12 @@
     if (!d || typeof d !== 'object' || Array.isArray(d) || STATUSES.indexOf(d.status) === -1 || typeof d.username !== 'string' || !Array.isArray(d.companies)) {
       out.appendChild(stateBox('This is not a radar result file', 'It was expected to hold a username, a status (ok, partial, no_matches or failed) and a list of companies.')); return;
     }
+    show(d, {});
+  }
+
+  // d is a radar result (from a file, or made by this page); opts.browser says the page made it from GitHub's public data.
+  function show(d, opts) {
+    var out = $('ck-out'); out.textContent = '';
     var user = str(d.username) || 'unknown';
     if (d.status === 'failed') {
       out.appendChild(stateBox('The run stopped at step "' + (str(d.failed_step) || 'unknown') + '"', (str(d.error) || 'No reason was recorded.') + ' No result is shown: a half-finished run is never presented as a complete one. Fix the cause and run hnradar radar again.'));
@@ -363,7 +390,9 @@
     }
     var head = section('Radar for ' + user);
     var when = new Date(d.generated_at);
-    head.appendChild(el('p', { className: 'rw-hn-small rw-hn-muted' }, 'Made ' + (isNaN(when.getTime()) ? 'at an unknown time' : when.toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' })) + ' on your computer. Status: ' + d.status + '.'));
+    head.appendChild(el('p', { className: 'rw-hn-small rw-hn-muted' }, opts.browser
+      ? 'Made just now in this browser from your public GitHub repositories. Nothing was saved, and nothing was sent to this site.'
+      : 'Made ' + (isNaN(when.getTime()) ? 'at an unknown time' : when.toLocaleString('en-GB', { dateStyle: 'long', timeStyle: 'short' })) + ' on your computer. Status: ' + d.status + '.'));
     if (Array.isArray(d.steps)) {
       var chips = el('ul', { className: 'rw-hn-chips', 'aria-label': 'Steps of the run' });
       d.steps.forEach(function (s) {
@@ -391,18 +420,112 @@
     if (valid.length > MAX_COMPANIES) { skipped += valid.length - MAX_COMPANIES; valid = valid.slice(0, MAX_COMPANIES); }
     if (!valid.length) { out.appendChild(stateBox('No company in the file could be shown', 'The companies in the file are missing fields, so none is displayed.')); return; }
     var sec = section('Your best-fit companies');
-    if (d.status === 'partial') sec.appendChild(noteBox('Partial result: some companies have no Show HN story or no cited problem, so they have no draft. Each says why. This is a normal outcome, not a failure.', false));
+    if (d.status === 'partial' && !opts.browser) sec.appendChild(noteBox('Partial result: some companies have no Show HN story or no cited problem, so they have no draft. Each says why. This is a normal outcome, not a failure.', false));
     var ul = el('ul', { className: 'rw-hn-list' });
     valid.forEach(function (c) { ul.appendChild(renderCompany(c)); });
     sec.appendChild(ul);
     if (skipped) sec.appendChild(noteBox(skipped + (skipped === 1 ? ' company' : ' companies') + ' in the file ' + (skipped === 1 ? 'was' : 'were') + ' not shown because ' + (skipped === 1 ? 'it was' : 'they were') + ' not valid.', true));
-    sec.appendChild(el('p', { className: 'rw-hn-small rw-hn-muted' }, 'Summaries and drafts are written by a small local model and can be wrong. The Hacker News comments are the source: open them before you rely on or send anything.'));
+    sec.appendChild(el('p', { className: 'rw-hn-small rw-hn-muted' }, opts.browser
+      ? 'The fit compares the languages and topics of your public repositories with the technologies named in each post. It is a starting point, not a verdict: read the hiring post.'
+      : 'Summaries and drafts are written by a small local model and can be wrong. The Hacker News comments are the source: open them before you rely on or send anything.'));
     out.appendChild(sec);
   }
 
   // ---- input: a file, a drop or pasted text ----
-  var gen = 0, reader = null;  // a read that finishes after Clear, or after a newer load, must not render
-  function stopRead() { gen++; if (reader) { try { reader.abort(); } catch (e) {} reader = null; } }
+  var gen = 0, reader = null, ctl = null;  // a read or request that finishes after Clear, or after a newer start, must not render (S4)
+  function stopRead() {
+    gen++;
+    if (reader) { try { reader.abort(); } catch (e) {} reader = null; }
+    if (ctl) { ctl.abort(); ctl = null; }
+  }
+
+  // ---- input: a GitHub username, matched in the browser ----
+  var BROWSER_TOP = 5;
+  var PROBLEM_TITLES = { invalid_username: 'That is not a GitHub username', not_found: 'No such GitHub user', rate_limit: 'GitHub\'s hourly limit is used up', too_many_repos: 'Too many repositories',
+    network: 'GitHub could not be reached', timeout: 'GitHub did not answer in time', http: 'GitHub returned an error', bad_response: 'GitHub\'s answer could not be used' };
+
+  function showProblem(title, text) { var out = $('ck-out'); out.textContent = ''; out.appendChild(stateBox(title, text)); }
+
+  var JOBS_TIMEOUT_MS = 20000;
+  function loadJobs(signal) {  // a stalled request ends in a named failure after JOBS_TIMEOUT_MS, like the GitHub request (S3)
+    var c = new AbortController(), timedOut = false;
+    var onAbort = function () { c.abort(); };
+    signal.addEventListener('abort', onAbort, { once: true });
+    var timer = setTimeout(function () { timedOut = true; c.abort(); }, JOBS_TIMEOUT_MS);
+    var finish = function () { clearTimeout(timer); signal.removeEventListener('abort', onAbort); };
+    return fetch(H.paths.data + 'jobs.json', { signal: c.signal, cache: 'no-cache' }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      var modified = r.headers.get('Last-Modified');
+      return r.json().then(function (d) {
+        HNFit.checkJobs(d);  // throws on an empty list or a record that is not a job
+        return { jobs: d, modified: modified };
+      });
+    }).then(function (v) { finish(); return v; }, function (e) {
+      finish();
+      if (timedOut) throw new Error('no answer within ' + (JOBS_TIMEOUT_MS / 1000) + ' seconds');
+      throw e;
+    });
+  }
+
+  // The result in the shape of a radar file, so the same cards draw it. Only fit is known here: show_hn, problem and draft stay empty.
+  function resultFromMatches(name, profile, matches, jobCount) {
+    var companies = matches.map(function (m) {
+      var c = { rank: m.rank, company: m.job.company, role: m.job.role, job_comment_id: m.job.comment_id, job_url: m.job.url, fit_score: m.score,
+        fit_reasons: m.reasons.map(function (r) { return r.text; }), show_hn: null, pulse_status: 'no_show_hn', problem: null, draft_status: 'skipped', draft: null, note: null };
+      browserCards.add(c);
+      return c;
+    });
+    return {
+      username: name, generated_at: new Date().toISOString(), status: companies.length ? 'partial' : 'no_matches',
+      steps: [{ name: 'fingerprint', status: 'ok' }, { name: 'match', status: 'ok' }],
+      profile_summary: { languages: profile.languages.map(function (l) { return l.name; }), topics: profile.topics, notable_repos: profile.notable_repos.map(function (r) { return r.name; }) },
+      companies: companies,
+      warnings: profile.languages.length || profile.topics.length ? [] : [name + ' has no public repositories with a language or a topic, so there is nothing to match.']
+    };
+  }
+
+  function runBrowser(raw) {
+    var name = String(raw || '').trim().replace(/^@/, '');
+    stopRead();
+    var mine = gen;
+    if (!window.HNFit || !window.HNGitHub) { showProblem('A script of this page did not load', 'Reload the page. If it happens again, the site files are incomplete: the page needs hn-fit.js and hn-github.js next to it.'); return; }
+    if (!name) { showProblem('Type a username first', 'Enter your GitHub username, for example octocat.'); return; }
+    if (!HNGitHub.USERNAME_RE.test(name)) { showProblem(PROBLEM_TITLES.invalid_username, 'A username has 1 to 39 letters, digits or single hyphens, and does not start or end with a hyphen.'); return; }
+    ctl = new AbortController();
+    var signal = ctl.signal;
+    $('ck-paste').value = '';
+    showProblem('Asking GitHub', 'Reading the public repositories of ' + name + '. Nothing else is sent.');
+    var found;
+    HNGitHub.fetchRepos(name, { fetch: window.fetch.bind(window), signal: signal })
+      .then(function (repos) {
+        if (mine !== gen) return null;
+        found = repos;
+        return loadJobs(signal).then(function (j) { return j; }, function (e) {
+          if (mine !== gen || (e && e.name === 'AbortError')) return null;
+          var err = new Error('The list of jobs could not be loaded (' + clean(String(e && e.message || e)) + '). Reload the page and try again.'); err.jobs = true; throw err;
+        });
+      })
+      .then(function (loaded) {
+        if (mine !== gen || !loaded) return;
+        var profile = HNFit.buildProfile(name, found);
+        var result = resultFromMatches(name, profile, HNFit.topMatches(profile, loaded.jobs, BROWSER_TOP), loaded.jobs.length);
+        show(result, { browser: true });
+        var when = loaded.modified ? new Date(loaded.modified) : null;
+        var out = $('ck-out'), head = out.querySelector('section');
+        if (head) head.appendChild(el('p', { className: 'rw-hn-small rw-hn-muted' }, 'Compared with ' + loaded.jobs.length + ' jobs' + (when && !isNaN(when.getTime()) ? ' (data last updated ' + when.toLocaleDateString('en-GB', { dateStyle: 'long', timeZone: 'UTC' }) + ' UTC)' : '') + '.'));
+        out.scrollIntoView({ block: 'start' });
+      })
+      .catch(function (e) {
+        if (mine !== gen) return;
+        if (e && e.name === 'GitHubError') {
+          var more = e.code === 'rate_limit' && e.resetAt ? ' It resets at ' + new Date(e.resetAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) + ' (your time).' : '';
+          showProblem(PROBLEM_TITLES[e.code] || 'GitHub could not be asked', clean(e.message) + more);
+        } else if (e && e.jobs) showProblem('The list of jobs could not be loaded', clean(e.message));
+        else showProblem(PROBLEM_TITLES.bad_response, 'The answer from GitHub did not have the shape this page expects, so no profile was made.');
+      })
+      .then(function () { if (mine === gen) ctl = null; });
+  }
+  $('ck-form').addEventListener('submit', function (e) { e.preventDefault(); runBrowser($('ck-user').value); });
   function readFile(file) {
     if (!file) return;
     stopRead();
@@ -423,7 +546,7 @@
     out.insertBefore(noteBox('This is an example, not your result. The developer "example-developer" and the repos are made up. The jobs, the Show HN thread and the two comments are real and public. The note was written by hand to show the format and is never sent anywhere.', true), out.firstChild);
     out.scrollIntoView({ block: 'start' });
   });
-  $('ck-clear').addEventListener('click', function () { stopRead(); $('ck-paste').value = ''; $('ck-out').textContent = ''; $('ck-file').value = ''; });
+  $('ck-clear').addEventListener('click', function () { stopRead(); $('ck-user').value = ''; $('ck-paste').value = ''; $('ck-out').textContent = ''; $('ck-file').value = ''; });
   var drop = $('ck-drop');
   ['dragenter', 'dragover'].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.add('rw-hn-drop--over'); }); });
   ['dragleave', 'drop'].forEach(function (n) { drop.addEventListener(n, function (e) { e.preventDefault(); drop.classList.remove('rw-hn-drop--over'); }); });
