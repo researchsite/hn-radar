@@ -44,3 +44,11 @@ def test_every_node_test_file_is_in_the_documented_command():
     for test_file in sorted((CAREERS.parent / "tests").glob("*.test.js")):
         for name, text in docs.items():
             assert f"site/tests/{test_file.name}" in text, f"{test_file.name} is not in the node --test command in {name}"
+
+
+def test_every_place_that_lists_the_published_data_files_names_signals_json():
+    """Qodo (PR 67): the allowlist is described in more than one paragraph; each one must name every data file the page reads."""
+    paragraphs = [p for p in README.split("\n") if "allowlist" in p and "showhn-index.json" in p]
+    assert len(paragraphs) >= 2
+    for p in paragraphs:
+        assert "`signals.json`" in p, "a paragraph of site/README.md lists the published data files without signals.json"
