@@ -10,7 +10,7 @@
   var PATHS = { data: './data/', images: './images/', videos: './videos/', search: './pagefind/' };
 
   // Control characters, DEL and C1, zero-width and bidirectional/format characters.
-  var BAD = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f​-‏‪-‮⁠-⁯﻿]/g;
+  var BAD = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g;
 
   // One line: every run of whitespace becomes a single space.
   function clean(text) {
