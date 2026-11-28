@@ -138,6 +138,25 @@ uv run pytest
 node --test site/tests/hn-fit.test.js site/tests/hn-github.test.js     # the site's JavaScript (pytest also runs it when node is installed)
 ```
 
+## Third-party licences
+
+The Python packages that `uv sync` installs for running `hnradar`, with the licence each one declares in its own package metadata (read on 28 Nov 2026). The three direct dependencies come first; the rest are pulled in by them.
+
+| Package | Licence |
+|---|---|
+| `httpx` (direct) | BSD-3-Clause |
+| `pydantic` (direct) | MIT |
+| `typer` (direct) | MIT |
+| `pydantic-core`, `anyio`, `h11`, `rich`, `markdown-it-py`, `mdurl`, `annotated-types`, `annotated-doc`, `typing-inspection` | MIT |
+| `httpcore`, `idna` | BSD-3-Clause |
+| `pygments` | BSD-2-Clause |
+| `colorama` | BSD (declared as a classifier, no version) |
+| `shellingham` | ISC |
+| `typing-extensions` | PSF-2.0 |
+| `certifi` | MPL-2.0 |
+
+`certifi` (installed by `httpx`) is the only package under the MPL-2.0, a file-level licence: it asks that changes to certifi's own files be shared. This project installs certifi as published, does not modify it and does not copy it into this repository. A repository scan listed it as a licence type to be aware of, not as a vulnerability. Test and development tools (`pytest`, `respx`) are not listed.
+
 ## Contributing
 
 See [AGENTS.md](AGENTS.md) for the quality gate and review rules.
